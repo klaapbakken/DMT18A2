@@ -1,0 +1,332 @@
+---
+title: "Kaggle-Expedia-Analysis"
+author: "T.W Battaglia"
+date: "April 26, 2018"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache = TRUE)
+library(tidyverse)
+library(readr)
+library(lubridate)
+library(scales)
+library(viridis)
+
+# Load training data
+load("training_processed.rda")
+```
+
+### Data Import
+Code below is presented only for reproducibility. The processed data is located within the R-object `training_processed.rda`. The command `load("training_processed.rda")` will load the object into the environment.
+
+#### Import training data
+```{r, eval=FALSE}
+# Import using readr (faster)
+training = read_csv("Data Mining VU data/training_set_VU_DM_2014.csv", na = "NULL")
+
+# View column type summary
+glimpse(training)
+```
+
+#### Change column types to correct format
+```{r, eval=FALSE}
+# Change the column types
+training = training %>% 
+  mutate(srch_id = as.factor(srch_id),
+         site_id = as.factor(site_id),
+         visitor_location_country_id = as.factor(visitor_location_country_id),
+         prop_country_id = as.factor(prop_country_id),
+         prop_id = as.factor(prop_id),
+         prop_brand_bool = as.factor(prop_brand_bool),
+         promotion_flag = as.factor(promotion_flag),
+         srch_destination_id = as.factor(srch_destination_id),
+         srch_saturday_night_bool = as.factor(srch_saturday_night_bool),
+         random_bool = as.factor(random_bool),
+         click_bool = as.factor(click_bool),
+         booking_bool = as.factor(booking_bool))
+```
+
+#### Expand the data_time feature
+```{r, eval=F}
+# Expand the data-time into year, month, day, weekday
+training = training %>% 
+  separate(date_time, c("ymd", "hour"), sep = " ", remove = F) %>%
+  select(-hour) %>% 
+  mutate(ymd = ymd(ymd),
+         wday = wday(date_time, label = TRUE),
+         month = month(date_time, label = TRUE),
+         week = week(date_time),
+         day = day(date_time))
+```
+
+#### View column types
+```{r, eval = F}
+# View column types summary after column changes
+glimpse(training)
+```
+
+#### Save table as r-object for faster import
+```{r, eval = F}
+# Save files as .rda objects
+save(training, file = "training_processed.rda")
+```
+
+
+### Get Summary Statistics
+
+#### Basic dimensions
+```{r}
+# View dimensions
+dim(training)
+```
+
+#### Number of unique searchs
+Large amount of unique searchs to deal with.
+```{r}
+# Number of unique searches
+training %>% 
+  group_by(srch_id) %>% 
+  tally() %>% 
+  nrow()
+```
+
+#### Span of the bookings within the training data
+Data does not include information over the entire year.
+```{r}
+# Differences between min and max days
+max(training$ymd) - min(training$ymd) 
+```
+
+#### Distribution of length of stay
+A majority of the searches have a short length of stay
+```{r}
+# Length of stay distribution
+training %>% 
+  group_by(srch_length_of_stay) %>% 
+  tally() %>% 
+  top_n(20) %>% 
+  arrange(desc(n)) %>% 
+  ggplot(aes(x = srch_length_of_stay, y = n / 4958347)) +
+  geom_bar(stat = "identity") +
+  theme_bw(base_size = 14) +
+  scale_y_continuous(labels = scales::percent) +
+  xlab("Length of stay (days)") +
+  ylab("Fraction of total searches")
+```
+
+#### Number of clicks & bookings
+Data set is very imbalanced with many more searches that were not clicked or not booked.
+```{r}
+# Number of clicks & bookings == TRUE
+training %>% 
+  group_by(click_bool, booking_bool) %>% 
+  tally() %>% 
+  ungroup() %>% 
+  mutate(Percent = (n / sum(n)) * 100)
+```
+
+
+#### Number of properties
+There are a large amount of unique properties within the dataset, but a fairly equal representation of each property.
+```{r}
+# Number of properties
+## 129,113 different properties
+## Top property has 2357 searches
+training %>% 
+  group_by(prop_id) %>% 
+  tally() %>% 
+  top_n(20) %>% 
+  arrange(desc(n))
+```
+
+#### Number of sites
+There is a dominating website/search portal that has a large amount of the searches. I assume this is expedia.com.
+```{r}
+# Number of sites to book from
+## 34 different sites
+training %>% 
+  group_by(site_id) %>% 
+  tally() %>% 
+  top_n(20) %>% 
+  arrange(desc(n))
+```
+
+#### Number of destinations
+There are some destinations that appear more frequently. This could be major cities, like NYC or Chicago.
+```{r}
+# Number of destinations
+## 18,127 different destinations
+training %>% 
+  group_by(srch_destination_id) %>% 
+  tally() %>% 
+  top_n(20) %>% 
+  arrange(desc(n))
+```
+
+#### Origins + Destinations
+Many of the origin and destinations are within the same country. I assume county code 219 is U.S.A.
+```{r}
+# Origin + Destination
+training %>% 
+  group_by(visitor_location_country_id, prop_country_id) %>% 
+  tally() %>% 
+  ungroup() %>% 
+  top_n(20) %>% 
+  arrange(desc(n))
+```
+
+#### Number of missing values percentages
+Many of the missing values come from the competitor values. This must be dealt with later.
+```{r}
+# Gather the amount of missing values in each column
+missing_values = training %>% 
+  summarise_all(funs(100 * mean(is.na(.) ))) %>% 
+  gather(Variable, Value) %>% 
+  arrange(desc(Value)) %>% 
+  mutate(Variable = as_factor(Variable))
+
+# Simple dotplot of missing values percentages
+missing_values %>% 
+  filter(Value > 0) %>% 
+  ggplot(aes(x = Variable, y = Value)) + 
+  geom_point(stat = 'identity', fill = "black", size = 3.5, alpha = 0.60) +
+  geom_segment(aes(y = 0, 
+                   x = Variable, 
+                   yend = Value, 
+                   xend = Variable), 
+               color = "black") +
+  coord_flip() +
+  xlab("") + ylab("Missing values (percent)") +
+  theme_bw() +
+  geom_hline(yintercept = 50, color = "red", alpha = 0.45) +
+  ggtitle("Percentage of missing observations within each feature")
+```
+
+### Properties of clicked hotels
+
+#### Subset to view only clicked hotels
+```{r}
+# Subset to view only clicked hotels
+training_click = training %>% 
+  filter(click_bool == 1)
+
+# Get dimensions
+dim(training_click)
+```
+
+
+### Properties of booked hotels
+
+#### Subset to view only booked hotels
+```{r}
+# Subset to view only booked hotels
+training_booked = training %>% 
+  filter(booking_bool == 1)
+
+# Get dimensions
+dim(training_booked)
+```
+
+#### View booking-rates over seasonality
+```{r}
+# Count booked occurances per day
+training_booked %>% 
+  group_by(ymd) %>% 
+  tally() %>% 
+  mutate(Fraction = n / 138390) %>% 
+  ggplot(aes(x = ymd, y = Fraction)) +
+  geom_line() +
+  theme_bw(base_size = 14) +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+  xlab("Month") +
+  ylab("Fraction of bookings") +
+  ggtitle("Fraction of total bookings, by month")
+```
+
+#### View booking-rates by week
+```{r}
+# Count booked occurances per week
+training_booked %>% 
+  group_by(wday) %>% 
+  tally() %>% 
+  mutate(Fraction = n / 138390) %>% 
+  ggplot(aes(x = wday, y = Fraction, group = 1)) +
+  geom_line() +
+  theme_bw(base_size = 14) +
+  xlab("Weekday") +
+  ylab("Fraction of bookings") +
+  ggtitle("Fraction of total bookings, by week day")
+```
+
+#### View booking-rates by week and seasonality
+```{r}
+# Count booked occurances per day
+training_booked %>% 
+  group_by(month, wday) %>% 
+  tally() %>% 
+  mutate(Fraction = (n / 138390) * 100) %>% 
+  ggplot(aes(x = month, y = wday, fill = Fraction)) +
+  geom_tile() +
+  theme_bw(base_size = 14) +
+  scale_fill_viridis() + 
+  ggtitle("Fraction of total bookings, by month and weekday")
+```
+
+
+
+### Gather data from single user
+```{r}
+# Subset to search query 1
+single_user = training %>% 
+  filter(srch_id == 1)
+
+# View table
+head(single_user)
+```
+
+### Subsample training data
+
+#### Sample srch_id's
+```{r}
+# Number of srch id's to gather
+length(levels(training$srch_id)) * 0.20
+
+# Gather 20% of training queries
+subsample_idx = sample(levels(training$srch_id), size = 39959)
+
+# Keep only sampled queries
+training_sampled = training %>% 
+  filter(srch_id %in% subsample_idx)
+```
+
+#### Verify accurate representation
+```{r}
+# Number of clicks & bookings == TRUE
+training_sampled %>% 
+  group_by(click_bool, booking_bool) %>% 
+  tally() %>% 
+  ungroup() %>% 
+  mutate(Percent = (n / sum(n)) * 100)
+```
+
+### Fix missing values
+https://ajourneyintodatascience.quora.com/Learning-to-Rank-Personalize-Expedia-Hotel-Searches-ICDM-2013-Data-Cleaning
+
+#### Breakdown of the features with missing values
+```{r}
+filter(missing_values, Value > 0) %>% 
+  select(Variable)
+```
+
+
+
+### Feature Engineering
+
+### Create a baseline ranking model
+
