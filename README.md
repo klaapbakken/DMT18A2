@@ -9,6 +9,9 @@ Process Report at https://www.sharelatex.com/1859427872gxtjrqgtgmgr
 
 ### Additional Resources
 
+#### Kaggle website (old)
+https://www.kaggle.com/c/expedia-personalized-sort
+
 #### Kaggle Winner Presentation  
 https://kaggle2.blob.core.windows.net/competitions/kaggle/3504/media/ICDM2013_Presentations_2013-12-08.zip
 
