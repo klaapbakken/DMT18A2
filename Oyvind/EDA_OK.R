@@ -11,6 +11,22 @@ srch_ids.unique <- unique(srch_ids)
 
 srch_df <- subset(df, srch_ids == srch_ids.unique[1])
 
+na_count <- colSums(is.na(df))
+no_na_features <- names(na_count[na_count == 0])
+no_na_indices <- which(features %in% no_na_features)
+
+priority_indices <- c(no_na_indices)
+
+no_na_df <- df[, priority_indices]
+no_na_matrix <- data.matrix(no_na_df)
+corr <- cor(no_na_matrix)
+logreg <- glm(booking_bool ~ (.),  data=no_na_df, family=binomial)
+
+significant_features <- c("booking_bool", names(summary(logreg)$coefficients[summary(logreg)$coefficients[,4] < 0.05, 4]))
+significant_indices <- which(features %in% significant_features)
+sign_df <- df[, significant_indices]
+
+red_logreg <- glm(booking_bool ~ (.), data=sign_df, family=binomial)
 
 
 
@@ -35,3 +51,5 @@ return(ranking)
 }
 
 ranked_corr <- correlations_ranked(10, corr)
+
+
