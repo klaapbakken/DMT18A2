@@ -5,23 +5,17 @@ summary(df)
 features <- variable.names(df)
 comp_features <- features[28:51]
 
-srch_ids <- df$srch_id
-srch_ids.unique <- unique(srch_ids)
 
+na_count <- colSums(is.na(df))
+no_na_features <- names(na_count[na_count == 0])
+no_na_indices <- which(features %in% no_na_features)
 
-srch_df <- subset(df, srch_ids == srch_ids.unique[1])
+priority_indices <- c(no_na_indices)
 
-
-
-
-ltd_df <- subset(df, srch_id %in% srch_ids.unique[1:100])
-red_ltd_df <- ltd_df[, which(!(features %in% comp_features))]
-red_ltd_matrix <- data.matrix(red_ltd_df)
-red_ltd_matrix[is.nan(red_ltd_matrix)] <- 0
-corr <- cor(red_ltd_matrix)
+no_na_df <- df[, priority_indices]
+no_na_matrix <- data.matrix(no_na_df)
+corr <- cor(no_na_matrix)
 corrplot(corr, method="color")
-logreg <- glm(booking_bool ~ (.),  data=limited_df)
-
 
 correlations_ranked <- function(n, corr){
   ranking <- list(n)
@@ -35,3 +29,8 @@ return(ranking)
 }
 
 ranked_corr <- correlations_ranked(10, corr)
+
+srch_ids <- df$srch_id
+srch_ids.unique <- unique(srch_ids)
+srch_df <- subset(df, srch_ids == srch_ids.unique[1])
+
