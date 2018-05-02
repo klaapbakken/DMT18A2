@@ -21,16 +21,16 @@ iterated_logreg_reduction <- function(df){
   s_i <- NULL
   s_df <- df
   while (!identical(p_s_feat, s_feat)){
-    logreg <- glm(booking_bool ~ (.),  data=s_df, family=binomial)
+    logreg <- glm(booking_bool ~ (.), data=s_df, family=binomial)
     p_s_feat <- s_feat
     s_feat <- c("booking_bool", names(summary(logreg)$coef[,4][summary(logreg)$coef[,4] < 0.05]))
     s_i <- which(feat %in% s_feat)
-    s_df <- df[, s_i]
+    s_df <- data.frame(df[, s_i, drop=FALSE])
   }
   return(logreg)
 }
 
-logreg <- iterated_logreg_reduction(no_na_df)
+logreg <- iterated_logreg_reduction(merged_df)
 
 summary <- summary(logreg)
 Rsq <- 1 - summary$deviance/summary$null.deviance
