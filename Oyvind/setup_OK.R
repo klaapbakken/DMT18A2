@@ -3,11 +3,14 @@ rm(list=ls())
 install.packages('dplyr')
 install.packages('plyr')
 install.packages('corrplot')
+install.packages('arules')
 
-require(readr)
-require(plyr)
-require(dplyr)
-require(corrplot)
+library(readr)
+library(plyr)
+library(dplyr)
+library(corrplot)
+library(stats)
+library(arules)
 
 data_split <- 0.1
 
