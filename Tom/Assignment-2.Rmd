@@ -16,9 +16,11 @@ library(readr)
 library(lubridate)
 library(scales)
 library(viridis)
+library(gbm)
+library(randomForest)
 
 # Load training data
-load("training_processed.rda")
+load("../data/training_processed.rda")
 ```
 
 ### Data Import
@@ -27,28 +29,10 @@ Code below is presented only for reproducibility. The processed data is located 
 #### Import training data
 ```{r, eval=FALSE}
 # Import using readr (faster)
-training = read_csv("Data Mining VU data/training_set_VU_DM_2014.csv", na = "NULL")
+training = read_csv('/Users/tom/GoogleDrive/School/Period-5/Data-Mining/Assignments/Assignment-2/Data Mining VU data/training_set_VU_DM_2014.csv', na = "NULL")
 
 # View column type summary
 glimpse(training)
-```
-
-#### Change column types to correct format
-```{r, eval=FALSE}
-# Change the column types
-training = training %>% 
-  mutate(srch_id = as.factor(srch_id),
-         site_id = as.factor(site_id),
-         visitor_location_country_id = as.factor(visitor_location_country_id),
-         prop_country_id = as.factor(prop_country_id),
-         prop_id = as.factor(prop_id),
-         prop_brand_bool = as.factor(prop_brand_bool),
-         promotion_flag = as.factor(promotion_flag),
-         srch_destination_id = as.factor(srch_destination_id),
-         srch_saturday_night_bool = as.factor(srch_saturday_night_bool),
-         random_bool = as.factor(random_bool),
-         click_bool = as.factor(click_bool),
-         booking_bool = as.factor(booking_bool))
 ```
 
 #### Expand the data_time feature
@@ -130,6 +114,20 @@ training %>%
   mutate(Percent = (n / sum(n)) * 100)
 ```
 
+#### Booking and Clicking instances 
+There are about 
+```{r}
+# Find the srch_ids click/book rates 
+srch_id_none = training %>% 
+  group_by(srch_id) %>% 
+  summarise(Total_query = length(srch_id),
+            Click_count = sum(click_bool),
+            Book_count = sum(booking_bool)) %>% 
+  arrange(desc(Click_count))
+
+head(srch_id_none)
+```
+
 
 #### Number of properties
 There are a large amount of unique properties within the dataset, but a fairly equal representation of each property.
@@ -189,6 +187,9 @@ missing_values = training %>%
   gather(Variable, Value) %>% 
   arrange(desc(Value)) %>% 
   mutate(Variable = as_factor(Variable))
+
+# Write table to disk
+write.csv(missing_values, "missing_values.csv")
 
 # Simple dotplot of missing values percentages
 missing_values %>% 
@@ -284,21 +285,129 @@ training_booked %>%
 ```{r}
 # Subset to search query 1
 single_user = training %>% 
-  filter(srch_id == 1)
+  filter(srch_id == 14059)
 
 # View table
 head(single_user)
 ```
+
+
+### Fix missing values
+https://ajourneyintodatascience.quora.com/Learning-to-Rank-Personalize-Expedia-Hotel-Searches-ICDM-2013-Data-Cleaning
+
+#### Set the competitor values to 0 (comp_XXXX)
+This assumes there is no major difference between the competitor price and Expedia price.
+```{r}
+training_noNA = training %>% 
+  replace_na(list(comp1_inv = 0,
+                  comp2_inv = 0,
+                  comp2_inv = 0,
+                  comp3_inv = 0,
+                  comp4_inv = 0,
+                  comp5_inv = 0,
+                  comp6_inv = 0,
+                  comp7_inv = 0,
+                  comp8_inv = 0,
+                  comp1_rate = 0,
+                  comp2_rate = 0,
+                  comp3_rate = 0,
+                  comp4_rate = 0,
+                  comp5_rate = 0,
+                  comp6_rate = 0,
+                  comp7_rate = 0,
+                  comp8_rate = 0,
+                  comp1_rate_percent_diff = 0,
+                  comp2_rate_percent_diff = 0,
+                  comp3_rate_percent_diff = 0,
+                  comp4_rate_percent_diff = 0,
+                  comp5_rate_percent_diff = 0,
+                  comp6_rate_percent_diff = 0,
+                  comp7_rate_percent_diff = 0,
+                  comp8_rate_percent_diff = 0))
+```
+
+#### Set the hotel reviews to -1.
+This assumes the worst for the hotel's that are not rated.
+```{r}
+training_noNA = training_noNA %>% 
+  replace_na(list(prop_review_score = -1,
+                  prop_starrating = -1)) 
+```
+
+#### Set the location score #2 to the minimum value across all scores
+```{r}
+training_noNA = training_noNA %>% 
+  group_by(srch_destination_id) %>% 
+  replace_na(list(prop_location_score2 = min(.$prop_location_score2, na.rm = T))) %>% 
+  ungroup()
+```
+
+#### Remove gross_bookings_usd
+This feature is not in the testing set.
+```{r}
+training_noNA = training_noNA %>% 
+  select(-gross_bookings_usd)
+```
+
+#### Set the distance from visitor to hotel as median across all values
+```{r}
+training_noNA = training_noNA %>% 
+  replace_na(list(orig_destination_distance = median(.$orig_destination_distance, 
+                                                     na.rm = T)))
+```
+
+#### Set the search query affinity (probability) to 0
+```{r}
+training_noNA = training_noNA %>% 
+  replace_na(list(srch_query_affinity_score = 0))
+```
+
+
+#### Within each searchID, 
+
+### Feature Engineering
+
+#### visitor_new_bool : visitor is a new customer (Bool)
+```{r}
+training_noNA = training_noNA %>% 
+  mutate(visitor_new_bool = if_else(is.na(visitor_hist_starrating), 1, 0))
+```
+
+#### srch_booking_date : current date + time to book (Date)
+```{r}
+training_noNA = training_noNA %>% 
+  mutate(srch_booking_date = ymd + srch_booking_window)
+```
+
+#### srch_holiday_bool : is the booking day on any known holiday of 5-7 window (Bool)
+```{r}
+
+```
+
+#### srch_people_num : total people on trip (adult + children) (Integer)
+```{r}
+training_noNA = training_noNA %>% 
+  mutate(srch_people_num = srch_adults_count + srch_children_count)
+```
+
+#### srch_children_bool : are there any children present (Bool)
+```{r}
+training_noNA = training_noNA %>% 
+  mutate(srch_children_bool = if_else(srch_children_count > 0, 1, 0))
+```
+
+#### price_order : ordering of the price within a srch)id (Ordered Integer)
+
 
 ### Subsample training data
 
 #### Sample srch_id's
 ```{r}
 # Number of srch id's to gather
-length(levels(training$srch_id)) * 0.20
+length(levels(as.factor(training$srch_id))) * 0.10
 
 # Gather 20% of training queries
-subsample_idx = sample(levels(training$srch_id), size = 39959)
+subsample_idx = sample(levels(as.factor(training$srch_id)), size = 19980)
 
 # Keep only sampled queries
 training_sampled = training %>% 
@@ -314,19 +423,4 @@ training_sampled %>%
   ungroup() %>% 
   mutate(Percent = (n / sum(n)) * 100)
 ```
-
-### Fix missing values
-https://ajourneyintodatascience.quora.com/Learning-to-Rank-Personalize-Expedia-Hotel-Searches-ICDM-2013-Data-Cleaning
-
-#### Breakdown of the features with missing values
-```{r}
-filter(missing_values, Value > 0) %>% 
-  select(Variable)
-```
-
-
-
-### Feature Engineering
-
-### Create a baseline ranking model
 

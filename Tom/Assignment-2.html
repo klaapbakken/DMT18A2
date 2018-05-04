@@ -672,6 +672,47 @@ training_sampled %&gt;%
 </div>
 <div id="feature-engineering" class="section level3">
 <h3>Feature Engineering</h3>
+<div id="visitor_new_bool-visitor-is-a-new-customer-bool" class="section level4">
+<h4>visitor_new_bool : visitor is a new customer (Bool)</h4>
+<pre class="r"><code>single_user = single_user %&gt;% 
+  mutate(visitor_new_bool = if_else(is.na(visitor_hist_starrating), 1, 0))</code></pre>
+</div>
+<div id="srch_booking_date-current-date-time-to-book-date" class="section level4">
+<h4>srch_booking_date : current date + time to book (Date)</h4>
+<pre class="r"><code>single_user = single_user %&gt;% 
+  mutate(srch_booking_date = ymd + srch_booking_window)</code></pre>
+</div>
+<div id="srch_holiday_bool-is-the-booking-day-on-any-known-holiday-of-5-7-window-bool" class="section level4">
+<h4>srch_holiday_bool : is the booking day on any known holiday of 5-7 window (Bool)</h4>
+<pre class="r"><code>single_user = single_user %&gt;% 
+  mutate(visitor_new_bool = if_else(is.na(visitor_hist_starrating), 1, 0),
+         srch_booking_date = ymd + srch_booking_window,
+         srch_people_num = srch_adults_count + srch_children_count,
+         srch_children_bool = if_else(srch_children_count &gt; 0, 1, 0))</code></pre>
+</div>
+<div id="srch_people_num-total-people-on-trip-adult-children-integer" class="section level4">
+<h4>srch_people_num : total people on trip (adult + children) (Integer)</h4>
+<pre class="r"><code>single_user = single_user %&gt;% 
+  mutate(srch_people_num = srch_adults_count + srch_children_count)</code></pre>
+</div>
+<div id="srch_children_bool-are-there-any-children-present-bool" class="section level4">
+<h4>srch_children_bool : are there any children present (Bool)</h4>
+<pre class="r"><code>single_user = single_user %&gt;% 
+  mutate(srch_children_bool = if_else(srch_children_count &gt; 0, 1, 0))</code></pre>
+</div>
+<div id="price_order-ordering-of-the-price-within-a-srchid-ordered-integer" class="section level4">
+<h4>price_order : ordering of the price within a srch)id (Ordered Integer)</h4>
+<pre class="r"><code>single_user$price_usd</code></pre>
+<pre><code>##  [1] 104.77 170.74 179.80 602.77 143.58 195.32 129.35  85.37 150.05 280.69
+## [11] 190.14 100.89 100.89 210.84 138.40 100.89 152.63 138.40 115.12 191.44
+## [21] 122.88 139.70 115.12 128.06 181.09 120.29 104.77 190.14</code></pre>
+<pre class="r"><code>order(single_user$price_usd, decreasing = T)</code></pre>
+<pre><code>##  [1]  4 10 14  6 20 11 28 25  3  2 17  9  5 22 15 18  7 24 21 26 19 23  1
+## [24] 27 12 13 16  8</code></pre>
+<pre class="r"><code>temp = single_user %&gt;%
+  group_by(srch_id) %&gt;% 
+  mutate(price_order = order(as.numeric(price_usd)))</code></pre>
+</div>
 </div>
 <div id="create-a-baseline-ranking-model" class="section level3">
 <h3>Create a baseline ranking model</h3>
