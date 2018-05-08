@@ -1,17 +1,18 @@
 ---
 title: "Kaggle-Expedia-Analysis"
 author: "T.W Battaglia"
-date: "April 26, 2018"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   html_document:
     toc: yes
     toc_depth: 4
     toc_float: yes
 ---
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, cache=T}
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(cache = TRUE)
 library(tidyverse)
+library(purrrlyr)
 library(readr)
 library(lubridate)
 library(scales)
@@ -29,7 +30,7 @@ Code below is presented only for reproducibility. The processed data is located 
 #### Import training data
 ```{r, eval=FALSE}
 # Import using readr (faster)
-training = read_csv('/Users/tom/GoogleDrive/School/Period-5/Data-Mining/Assignments/Assignment-2/Data Mining VU data/training_set_VU_DM_2014.csv', na = "NULL")
+training = read_csv('Data Mining VU data/training_set_VU_DM_2014.csv', na = "NULL")
 
 # View column type summary
 glimpse(training)
@@ -79,6 +80,15 @@ training %>%
   nrow()
 ```
 
+#### Range of the hotel prices
+Very large range of hotel prices. Can be due to many different hotel-specific factors.
+```{r}
+# Number of unique searches
+training %>% 
+  select(price_usd) %>% 
+  summary()
+```
+
 #### Span of the bookings within the training data
 Data does not include information over the entire year.
 ```{r}
@@ -90,6 +100,16 @@ max(training$ymd) - min(training$ymd)
 A majority of the searches have a short length of stay
 ```{r}
 # Length of stay distribution
+summary(training$srch_length_of_stay)
+
+# Length of stay distribution figure
+training %>% 
+  group_by(srch_length_of_stay) %>% 
+  tally() %>% 
+  ungroup() %>% 
+  mutate(Percent = (n / sum(n)) * 100)
+
+# Length of stay distribution figure
 training %>% 
   group_by(srch_length_of_stay) %>% 
   tally() %>% 
@@ -124,8 +144,6 @@ srch_id_none = training %>%
             Click_count = sum(click_bool),
             Book_count = sum(booking_bool)) %>% 
   arrange(desc(Click_count))
-
-head(srch_id_none)
 ```
 
 
@@ -152,6 +170,19 @@ training %>%
   tally() %>% 
   top_n(20) %>% 
   arrange(desc(n))
+```
+
+#### Number of destination countries
+
+```{r}
+# Number of destinations
+## 172 different destinations
+training %>% 
+  group_by(prop_country_id) %>% 
+  tally() %>% 
+  ungroup() %>% 
+  mutate(Percent = (n / sum(n)) * 100) %>% 
+  arrange(desc(Percent))
 ```
 
 #### Number of destinations
@@ -291,39 +322,165 @@ single_user = training %>%
 head(single_user)
 ```
 
+### Subsample training data
+
+#### Sample srch_id's
+```{r}
+# Number of srch id's to gather
+length(levels(as.factor(training$srch_id))) * 0.10
+length(levels(as.factor(training$srch_id))) * 0.05
+length(levels(as.factor(training$srch_id))) * 0.01
+
+# Gather 1% of training queries
+subsample_idx = sample(levels(as.factor(training$srch_id)), size = 1998)
+
+# Keep only sampled queries
+training_sampled = training %>% 
+  filter(srch_id %in% subsample_idx)
+```
+
+#### Verify accurate representation
+```{r}
+# Number of clicks & bookings == TRUE
+training_sampled %>% 
+  group_by(click_bool, booking_bool) %>% 
+  tally() %>% 
+  ungroup() %>% 
+  mutate(Percent = (n / sum(n)) * 100)
+```
+
 
 ### Fix missing values
 https://ajourneyintodatascience.quora.com/Learning-to-Rank-Personalize-Expedia-Hotel-Searches-ICDM-2013-Data-Cleaning
 
-#### Set the competitor values to 0 (comp_XXXX)
-This assumes there is no major difference between the competitor price and Expedia price.
+#### Collapse the competitor rates (compX_rate)
+This assumes there is no major difference between the competitor price and Expedia price. Collapse these values into 3 new columns.
+- The number of NaN values  
+- The number of postive instances (+1)  
+- The number of negative instances (-1)  
+- The number of neutral instances (0) 
+
+The competitor rates were collapsed to count the number of missing values (NaN), the number of Expedia-postive (+1) and Expedia-negative values (-1), in addition to the neutral rates (0). We feel this though the missing competitor information and the frequency of a competitor's advantage/disadvantage against the Expedia properties may describe a latent variable about the hotel.
 ```{r}
-training_noNA = training %>% 
-  replace_na(list(comp1_inv = 0,
-                  comp2_inv = 0,
-                  comp2_inv = 0,
-                  comp3_inv = 0,
-                  comp4_inv = 0,
-                  comp5_inv = 0,
-                  comp6_inv = 0,
-                  comp7_inv = 0,
-                  comp8_inv = 0,
-                  comp1_rate = 0,
-                  comp2_rate = 0,
-                  comp3_rate = 0,
-                  comp4_rate = 0,
-                  comp5_rate = 0,
-                  comp6_rate = 0,
-                  comp7_rate = 0,
-                  comp8_rate = 0,
-                  comp1_rate_percent_diff = 0,
-                  comp2_rate_percent_diff = 0,
-                  comp3_rate_percent_diff = 0,
-                  comp4_rate_percent_diff = 0,
-                  comp5_rate_percent_diff = 0,
-                  comp6_rate_percent_diff = 0,
-                  comp7_rate_percent_diff = 0,
-                  comp8_rate_percent_diff = 0))
+# Count the number of NaN/-1/+1 values across compX_rate
+comp_rate_missing = training_sampled %>% 
+  select(ends_with("rate")) %>% 
+  by_row(
+    ..f = function(x) {
+        sum(is.na(x[1:8]))
+      },
+    .to = "comp_rate_na",
+    .collate = "cols"
+  ) %>% 
+  by_row(
+    ..f = function(x) {
+        sum(x[1:8] == 1, na.rm = T)
+      },
+    .to = "comp_rate_positive",
+    .collate = "cols"
+  ) %>% 
+  by_row(
+    ..f = function(x) {
+        sum(x[1:8] == -1, na.rm = T)
+      },
+    .to = "comp_rate_negative",
+    .collate = "cols"
+  ) %>% 
+  by_row(
+    ..f = function(x) {
+        sum(x[1:8] == 0, na.rm = T)
+      },
+    .to = "comp_rate_neutral",
+    .collate = "cols"
+  ) %>% 
+  select(starts_with("comp_rate"))
+
+# Cbind the existing training data
+training_sampled = training_sampled %>% 
+  select(-ends_with("rate")) %>% 
+  cbind(comp_rate_missing)
+```
+
+#### Collapse the competitor availabilty (compX_inv)
+This assumes there is no major difference between the competitor price and Expedia price. Collapse these values into 3 new columns.
+- The number of NaN values  
+- The number of postive instances (+1)  
+- The number of neutral instances (0) 
+
+```{r}
+# Count the number of NaN/0/+1 values across compX_inv
+comp_inv_missing = training_sampled %>% 
+  select(ends_with("inv")) %>% 
+  by_row(
+    ..f = function(x) {
+        sum(is.na(x[1:8]))
+      },
+    .to = "comp_inv_na",
+    .collate = "cols"
+  ) %>% 
+  by_row(
+    ..f = function(x) {
+        sum(x[1:8] == 1, na.rm = T)
+      },
+    .to = "comp_inv_positive",
+    .collate = "cols"
+  ) %>% 
+  by_row(
+    ..f = function(x) {
+        sum(x[1:8] == 0, na.rm = T)
+      },
+    .to = "comp_inv_neutral",
+    .collate = "cols"
+  ) %>% 
+  select(starts_with("comp_inv"))
+
+# Cbind the existing training data
+training_sampled = training_sampled %>% 
+  select(-ends_with("inv")) %>% 
+  cbind(comp_inv_missing)
+```
+
+#### Collapse the competitor rates % diff (compX_rate_percent_diff)
+This assumes there is no major difference between the competitor price and Expedia price. Collapse these values into 3 new columns.
+- The number of NaN values  
+- The average of the absolute differences
+- The sd of the absolute differences 
+
+```{r}
+# Count the number of NaN/mean(abs) values across compX_rate_percent
+comp_rate_percent_missing = training_sampled %>% 
+  select(ends_with("rate_percent_diff")) %>% 
+  by_row(
+    ..f = function(x) {
+        sum(is.na(x[1:8]))
+      },
+    .to = "comp_rate_percent_diff_na",
+    .collate = "cols"
+  ) %>% 
+  select(starts_with("comp_rate_percent"))
+
+# Cbind the existing training data
+training_sampled = training_sampled %>% 
+  select(-ends_with("rate_percent_diff")) %>% 
+  cbind(comp_rate_percent_missing)
+```
+
+#### Impute the orig_destination_distance
+- Approach #1: Impute using the median/mean distances across all distances
+- Possible Approach #2: Use the average distances when searching between matching origin/destinations
+
+```{r}
+# Get the distribution of the distances
+skimr::skim(training_sampled$orig_destination_distance)
+median(training_sampled$orig_destination_distance, na.rm = T)
+mean(training_sampled$orig_destination_distance, na.rm = T)
+sd(training_sampled$orig_destination_distance, na.rm = T)
+
+# Replace NA values with the median/mean distances across the origin
+training_sampled = training_sampled %>% 
+  mutate(orig_destination_distance_mean = orig_destination_distance) %>% 
+  replace_na(list(orig_destination_distance = median(.$orig_destination_distance, na.rm = T),
+                  orig_destination_distance_mean = mean(.$orig_destination_distance_mean, na.rm = T))) 
 ```
 
 #### Set the hotel reviews to -1.
@@ -363,8 +520,6 @@ training_noNA = training_noNA %>%
 ```
 
 
-#### Within each searchID, 
-
 ### Feature Engineering
 
 #### visitor_new_bool : visitor is a new customer (Bool)
@@ -399,28 +554,4 @@ training_noNA = training_noNA %>%
 #### price_order : ordering of the price within a srch)id (Ordered Integer)
 
 
-### Subsample training data
-
-#### Sample srch_id's
-```{r}
-# Number of srch id's to gather
-length(levels(as.factor(training$srch_id))) * 0.10
-
-# Gather 20% of training queries
-subsample_idx = sample(levels(as.factor(training$srch_id)), size = 19980)
-
-# Keep only sampled queries
-training_sampled = training %>% 
-  filter(srch_id %in% subsample_idx)
-```
-
-#### Verify accurate representation
-```{r}
-# Number of clicks & bookings == TRUE
-training_sampled %>% 
-  group_by(click_bool, booking_bool) %>% 
-  tally() %>% 
-  ungroup() %>% 
-  mutate(Percent = (n / sum(n)) * 100)
-```
 
