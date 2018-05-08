@@ -11,7 +11,7 @@ rm(training)
 #Split
 srch_ids <- df$srch_id
 srch_ids.unique <- unique(srch_ids)
-data_split <- 0.005
+data_split <- 1
 n_train <- floor(length(srch_ids.unique)*data_split)
 n_test <- length(srch_ids.unique) - n_train
 
@@ -65,6 +65,7 @@ only_avail <- apply(comp_df[, inv_i], 1, oa_func)
 
 
 add_comp_df <- data.frame(lowest_price, only_avail)
+save(add_comp_df, file=".rda")
 imputed_comp_df <- comp_df
 imputed_comp_df[is.na(imputed_comp_df)] <- 0
 new_comp_df <- cbind(imputed_comp_df, add_comp_df)
@@ -76,10 +77,57 @@ visitor_indices <- which(na_features %in% features[5:7])
 visitor_features <- names(na_df[, visitor_indices])
 visitor_df <- na_df[, visitor_indices]
 
-visitor_means <- apply(visitor_df[, visitor_indices], 2, mean, na.rm=TRUE)
+#visitor_means <- apply(visitor_df[, visitor_indices], 2, mean, na.rm=TRUE)
+#visitor_df$visitor_hist_starrating[is.na(visitor_df$visitor_hist_starrating)] <- visitor_means[1]
+#visitor_df$visitor_hist_adr_usd[is.na(visitor_df$visitor_hist_adr_usd)] <- visitor_means[2]
 
-visitor_df$visitor_hist_starrating[is.na(visitor_df$visitor_hist_starrating)] <- visitor_means[1]
-visitor_df$visitor_hist_adr_usd[is.na(visitor_df$visitor_hist_adr_usd)] <- visitor_means[2]
+all_na <- function(x) all(is.na(x))
+new_visitor <- apply(visitor_df[, visitor_indices], 1, all_na)
+
+cutoff <- function(x){
+  lower <- which(x < 0)
+  higher <- which(x > 5)
+  ret_x <- x
+  ret_x[lower] <- 0
+  ret_x[higher] <- 5
+  return (ret_x)
+}
+  
+  
+visitor_stars <- visitor_df$visitor_hist_starrating[which(!is.na(visitor_df$visitor_hist_starrating))]
+stars_fit <- fitdistr(visitor_stars, 'normal')
+norm_para <- stars_fit$estimate
+
+hist(visitor_stars, prob=TRUE)
+curve(dnorm(x, norm_para[1], norm_para[2]), col = 2, add=TRUE)
+
+visitor_stars_complete <- visitor_df$visitor_hist_starrating
+vsc_nans <- sum(is.na(visitor_stars_complete))
+star_samples <- rnorm(vsc_nans, norm_para[1], norm_para[2])
+visitor_stars_complete[is.na(visitor_stars_complete)] <- cutoff(star_samples)
+
+visitor_usd <- visitor_df$visitor_hist_adr_usd[which(!is.na(visitor_df$visitor_hist_adr_usd))]
+usd_fit <- fitdistr(visitor_usd, 'weibull')
+weib_para <- usd_fit$estimate
+
+hist(visitor_usd, prob=TRUE)
+curve(dweibull(x, weib_para[1], weib_para[2]), col = 2, add=TRUE)
+
+visitor_usd_complete <- visitor_df$visitor_hist_adr_usd
+vuc_nans <- sum(is.na(visitor_usd_complete))
+usd_samples <- rweibull(vuc_nans, weib_para[1], weib_para[2])
+visitor_usd_complete[is.na(visitor_usd_complete)] <- usd_samples
+
+hist(visitor_usd, prob=TRUE)
+hist(visitor_usd_complete, prob=TRUE)
+
+hist(visitor_stars, prob=TRUE)
+hist(visitor_stars_complete, prob=TRUE)
+
+add_visitor_df <- data.frame(visitor_hist_adr_usd=visitor_usd_complete,
+                             visitor_hist_starrating=visitor_stars_complete,
+                             new_visitor)
+save(add_visitor_df, file="add_visitor_df.rda")
 
 #Property
 
@@ -115,6 +163,9 @@ prop_df <- na_df[, property_indices]
 prop_df$prop_review_score[is.na(prop_df$prop_review_score)] <- low_review_score
 prop_df$prop_location_score2[is.na(prop_df$prop_location_score2)] <- score_predictions
 
+imputed_review_score_df <- prop_df[,1, drop=FALSE]
+save(imputed_review_score_df, file="imputed_review_score_df.rda")
+
 #Distance
 
 dist <- na_df$orig_destination_distance
@@ -123,6 +174,15 @@ dist_df <- data.frame(dist)
 
 #Query affinity
 
+no_na <- function(x) !any(is.na(x))
+covariates <- c(features[10:15], features[17:18], features[26])
+not_na_cov <- apply(df[, covariates], 1, no_na)
+not_na_cov <- which(not_na_cov)
+non_na_covs <- df[not_na_cov, covariates]
+non_na_covs$prop_starrating <- as.factor(non_na_covs$prop_starrating)
+
+am <- lm(exp(srch_query_affinity_score) ~ (.), data=non_na_covs)
+
 affinity <- exp(na_df$srch_query_affinity_score)
 affinity[is.na(affinity)] <- 0
 affinity_df = data.frame(affinity)
@@ -130,5 +190,3 @@ affinity_df = data.frame(affinity)
 # Wrap up
 
 complete_df <- cbind(non_na_df, new_comp_df, visitor_df, prop_df, dist_df, affinity_df)
-
-iterated_logreg_reduction(complete_df)
