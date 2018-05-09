@@ -4,6 +4,7 @@ install.packages('dplyr')
 install.packages('plyr')
 install.packages('corrplot')
 install.packages('arules')
+install.packages('tidyverse')
 
 library(readr)
 library(plyr)
@@ -11,6 +12,7 @@ library(dplyr)
 library(corrplot)
 library(stats)
 library(arules)
+library(MASS)
 
 data_split <- 0.1
 
