@@ -11,7 +11,7 @@ rm(training)
 #Split
 srch_ids <- df$srch_id
 srch_ids.unique <- unique(srch_ids)
-data_split <- 1
+data_split <- 0.05
 n_train <- floor(length(srch_ids.unique)*data_split)
 n_test <- length(srch_ids.unique) - n_train
 

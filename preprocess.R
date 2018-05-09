@@ -3,6 +3,7 @@
 # Load required libraries
 library(tidyverse)
 library(purrrlyr)
+library(MASS)
 
 # Function to return preprocessed dataframe
 preprocess_data = function(input_data, subsample = 0.10){
@@ -101,6 +102,99 @@ preprocess_data = function(input_data, subsample = 0.10){
     replace_na(list(prop_location_score2 = min(.$prop_location_score2, na.rm = T))) %>% 
     ungroup()
   
+  # - - - - - - - - - - - - - - - 
+  # Setup
+  # - - - - - - - - - - - 
+  
+  features <-names(input_data)
+  na_count <- colSums(is.na(input_data))
+  na_features <- names(na_count[na_count > 0])
+  na_indices <- which(features %in% na_features)
+  na_df <- input_data[, na_indices]
+  
+  # - - - - - - - - - - - - - - - 
+  # Fix visitor values
+  # - - - - - - - - - - - - - - -
+  # Flag new customers, impute by sampling from appropriate distribution
+  
+  visitor_indices <- which(na_features %in% features[5:7])
+  visitor_features <- names(na_df[, visitor_indices])
+  visitor_df <- na_df[, visitor_indices]
+  
+  all_na <- function(x) all(is.na(x))
+  new_visitor <- apply(visitor_df[, visitor_indices], 1, all_na)
+  
+  cutoff <- function(x){
+    lower <- which(x < 0)
+    higher <- which(x > 5)
+    ret_x <- x
+    ret_x[lower] <- 0
+    ret_x[higher] <- 5
+    return (ret_x)
+  }
+  
+  visitor_stars <- visitor_df$visitor_hist_starrating[which(!is.na(visitor_df$visitor_hist_starrating))]
+  stars_fit <- fitdistr(visitor_stars, 'normal')
+  norm_para <- stars_fit$estimate
+  
+  visitor_stars_complete <- visitor_df$visitor_hist_starrating
+  vsc_nans <- sum(is.na(visitor_stars_complete))
+  star_samples <- rnorm(vsc_nans, norm_para[1], norm_para[2])
+  visitor_stars_complete[is.na(visitor_stars_complete)] <- cutoff(star_samples)
+  
+  visitor_usd <- visitor_df$visitor_hist_adr_usd[which(!is.na(visitor_df$visitor_hist_adr_usd) & visitor_df$visitor_hist_adr_usd != 0)]
+  usd_fit <- fitdistr(visitor_usd, 'weibull')
+  weib_para <- usd_fit$estimate
+  
+  visitor_usd_complete <- visitor_df$visitor_hist_adr_usd
+  vuc_nans <- sum(is.na(visitor_usd_complete))
+  usd_samples <- rweibull(vuc_nans, weib_para[1], weib_para[2])
+  visitor_usd_complete[is.na(visitor_usd_complete)] <- usd_samples
+  
+  add_visitor_df <- data.frame(new_visitor)
+  
+  # - - - - - - - - - - - - - - - 
+  # Fix competition flags
+  # - - - - - - - - - - - - - - -
+  # Flags for lowest price and only with availability
+  
+  comp_indices <- which(na_features %in% features[29:52])
+  comp_features <- names(na_df[, comp_indices])
+  comp_df <- na_df[, comp_indices]
+  
+  rate_i <- which(comp_features %in% comp_features[seq(1, length(comp_features), 3)])
+  inv_i <- which(comp_features %in% comp_features[seq(2, length(comp_features), 3)])
+  rpd_i <- which(comp_features %in% comp_features[seq(3, length(comp_features), 3)])
+  
+  n <- nrow(comp_df)
+  lowest_price <- logical(n)
+  only_avail <- logical(n)
+  
+  lp_func <- function(x) (min(x, na.rm=TRUE) > -1 && any(!is.na(x)))
+  oa_func <- function(x) (min(x, na.rm=TRUE) == 1 && any(!is.na(x)))
+  lowest_price <- apply(comp_df[, rate_i], 1, lp_func)
+  only_avail <- apply(comp_df[, inv_i], 1, oa_func)
+  
+  add_comp_df <- data.frame(lowest_price, only_avail)
+  
+  # - - - - - - - - - - - - - - - 
+  # Fix review score
+  # - - - - - - - - - - - - - - -
+  # Imputing NA review score by value corresponding to 10% quantile
+  
+  property_indices <- which(na_features %in% features[9:15])
+  property_features <- names(na_df[, property_indices])
+  
+  low_review_score <- quantile(na_df$prop_review_score, probs = c(0.1), na.rm=TRUE)
+  
+  # - - - - - - - - - - - - - - - 
+  # Altering original data, adding new columns
+  # - - - - - - - - - - - - - - -
+  
+  input_data$prop_review_score[is.na(input_data$prop_review_score)] <- low_review_score
+  input_data$visitor_hist_starrating <- visitor_stars_complete
+  input_data$visitor_hist_adr_usd <- visitor_usd_complete
+  input_data <- cbind(input_data, add_visitor_df, add_comp_df)
   
   # - - - - - - - - - - - -
   # Subsample the dataframe
