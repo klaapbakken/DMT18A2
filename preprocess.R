@@ -132,7 +132,6 @@ preprocess_data = function(input_data, subsample = 0.10){
   # Flag new customers, impute by sampling from appropriate distribution
   
   visitor_indices <- which(na_features %in% features[5:7])
-  print(na_features)
   visitor_features <- names(na_df[, visitor_indices])
   visitor_df <- na_df[, visitor_indices]
   
@@ -259,7 +258,6 @@ preprocess_data = function(input_data, subsample = 0.10){
   
   # handle missing values of prop_review_score
   dista <- function(x){
-    print(x)
     min_dist = abs(x^2-groups_centers[1,2]^2)
     winner=1
     
@@ -368,34 +366,7 @@ preprocess_data = function(input_data, subsample = 0.10){
 
 # Run the function to process entire training data and save to new object
 load("data/training_processed.rda")
-
-traing_1 <- training[training$prop_review_score==0,"srch_id"]
-traing_2 <- training[training$prop_review_score==1,"srch_id"]
-traing_3 <- training[training$prop_review_score==1.5,"srch_id"]
-traing_4 <- training[training$prop_review_score==2,"srch_id"]
-traing_5 <- training[training$prop_review_score==2.5,"srch_id"]
-traing_6 <- training[training$prop_review_score==3,"srch_id"]
-traing_7 <- training[training$prop_review_score==3.5,"srch_id"]
-traing_8 <- training[training$prop_review_score==4,"srch_id"]
-traing_9 <- training[training$prop_review_score==4.5,"srch_id"]
-traing_10 <- training[training$prop_review_score==5,"srch_id"]
-traing_11 <- training[training$prop_review_score=='',"srch_id"]
-
-triang <- rbind(traing_1,
-                traing_2, 
-                traing_3,
-                traing_4,
-                traing_5,
-                traing_6,
-                traing_7,
-                traing_8,
-                traing_9,
-                traing_10,
-                traing_11)
-
-
-
-training_process_subsampled = preprocess_data(training[training$srch_id %in% triang,])
+training_process_subsampled = preprocess_data(training)
 save(file = "data/preprocessed.rda", training_data_subsampled)
 
 
