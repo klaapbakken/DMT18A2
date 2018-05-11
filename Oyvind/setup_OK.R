@@ -1,18 +1,22 @@
 rm(list=ls())
 
-#install.packages('dplyr')
-#install.packages('plyr')
-#install.packages('corrplot')
+install.packages('dplyr')
+install.packages('plyr')
+install.packages('corrplot')
+install.packages('arules')
+install.packages('tidyverse')
 
-require(readr)
-require(dplyr)
-require(plyr)
-require(corrplot)
+library(readr)
+library(plyr)
+library(dplyr)
+library(corrplot)
+library(stats)
+library(arules)
+library(MASS)
 
 data_split <- 0.1
 
-df <- read_csv(paste("C:/Users/Øyvind Klåpbakken/Downloads/Data Mining VU data/",
-                 "Data Mining VU data/training_set_VU_DM_2014.csv",sep=''),na=c("NULL"))
+df <- read_csv("C:/Users/Bruker/Downloads/Data Mining VU data/Data Mining VU data/training_set_VU_DM_2014.csv",na=c("NULL"))
 df$comp1_rate <- as.integer(df$comp1_rate)
 df$comp1_inv <- as.integer(df$comp1_inv)
 df$comp1_rate_percent_diff <- as.integer(df$comp1_rate_percent_diff)
