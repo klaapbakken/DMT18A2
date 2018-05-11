@@ -203,6 +203,17 @@ preprocess_data = function(input_data, subsample = 0.10){
   
   low_review_score <- quantile(na_df$prop_review_score, probs = c(0.1), na.rm=TRUE)
   
+  
+  # - - - - - - - - - - - - - - - 
+  # Fix competition flags
+  # - - - - - - - - - - - - - - -
+  message("Working on affinity feature")
+  # Temporary method for imputing affinity, imputing with min
+  
+  affinity <- input_data$srch_query_affinity_score
+  input_data$srch_query_affinity_score[
+    is.na(affinity)] <- min(affinity, na.rm=TRUE)
+  
   # - - - - - - - - - - - - - - - 
   # Altering original data, adding new columns
   # - - - - - - - - - - - - - - -
@@ -217,6 +228,16 @@ preprocess_data = function(input_data, subsample = 0.10){
   # - - - - - - - - - - - - - - - - - -
   # Feature is not included in the testing set
   input_data = dplyr::select(input_data, -gross_bookings_usd)
+  
+  
+  # - - - - - - - - - - - - - - - - - -
+  # Fix NA values for competitors
+  # - - - - - - - - - - - - - - - - - -
+  # Setting every NA to zero
+  
+  imputed_comp_df <- comp_df
+  imputed_comp_df[is.na(comp_df)] <- 0
+  input_data[, seq(29,52)] <- imputed_comp_df
   
   # - - - - - - - - - - - -
   # Subsample the dataframe
