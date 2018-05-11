@@ -11,7 +11,7 @@ rm(training)
 #Split
 srch_ids <- df$srch_id
 srch_ids.unique <- unique(srch_ids)
-data_split <- 0.05
+data_split <- 0.01
 n_train <- floor(length(srch_ids.unique)*data_split)
 n_test <- length(srch_ids.unique) - n_train
 
@@ -176,12 +176,12 @@ dist_df <- data.frame(dist)
 
 no_na <- function(x) !any(is.na(x))
 covariates <- c(features[10:15], features[17:18], features[26])
-not_na_cov <- apply(df[, covariates], 1, no_na)
-not_na_cov <- which(not_na_cov)
-non_na_covs <- df[not_na_cov, covariates]
-non_na_covs$prop_starrating <- as.factor(non_na_covs$prop_starrating)
+complete_i <- apply(df[, covariates], 1, no_na)
+complete_i <- which(complete_i)
+complete_rows <- df[complete_i, covariates]
+complete_rows$prop_starrating <- as.factor(non_na_covs$prop_starrating)
 
-am <- lm(exp(srch_query_affinity_score) ~ (.), data=non_na_covs)
+am <- lm(exp(srch_query_affinity_score) ~ (.), data=complete_rows)
 
 affinity <- exp(na_df$srch_query_affinity_score)
 affinity[is.na(affinity)] <- 0
