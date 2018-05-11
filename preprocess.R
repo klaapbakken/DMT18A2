@@ -13,7 +13,7 @@ preprocess_data = function(input_data, subsample = 0.10){
   # - - - - - - - - - - - - - - -
   message("Working on competitor features...")
   # Count the number of NaN/-1/+1 values across compX_rate
-  comp_rate_missing = training_sampled %>% 
+  comp_rate_missing = input_data %>% 
     dplyr::select(ends_with("rate")) %>% 
     by_row(
       ..f = function(x) {
