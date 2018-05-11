@@ -58,7 +58,7 @@ training.search.new_features <- training.search.new_features %>%
 names(training.search.new_features)
 
 sapply(training.search.new_features,class)
-training.search.new_features$comp1_inv <- as.intager(training.search.new_features$comp1_inv)
+training.search.new_features$comp1_inv <- as.integer(training.search.new_features$comp1_inv)
 training.search.new_features$comp1_rate <- as.integer(training.search.new_features$comp1_rate)
 training.search.new_features$comp1_rate_percent_diff <- as.integer(training.search.new_features$comp1_rate_percent_diff)
 
@@ -114,7 +114,7 @@ stratified$prop_country_id <- as.numeric(stratified$prop_country_id)
 stratified$srch_id <- as.numeric(stratified$srch_id)
 
 
-#handling missing values of orig_distance
+#handling missing values of visitor starring and payment history
 ggplot(stratified,aes(y=orig_destination_distance ,x=(srch_id-prop_country_id) )) + geom_point(aes(colour=as.factor(responses)))
 
 summaried <- training.search.new_features %>%
@@ -128,11 +128,12 @@ ggplot(summaried,aes(x=hist_usd,y=med_adr_sqrt )) + geom_point(aes(colour=as.fac
 ggplot(summaried,aes(x=hist_usd_sqrt,y=med_star )) + geom_point(aes(colour=as.factor(count_book))) + geom_abline(slope=linear.model$coefficients[1],intercept=linear.model$coefficients[2]) + xlim(0,30 )
 
 
-ggplot(summaried[summaried$count_book==1,],aes(x=hist_usd,y=med_star )) + geom_point(aes(colour=as.factor(count_book))) + geom_abline(slope=linear.model$coefficients[1],intercept=linear.model$coefficients[2]) + xlim(0,2000 )
+ggplot(summaried[summaried$count_book==1,],aes(x=hist_usd,y=med_star )) + geom_point(aes(colour=as.factor(count_book))) + geom_abline(slope=linear.model$coefficients[1],intercept=linear.model$coefficients[3]) + xlim(0,2000 )
 ggplot(summaried[summaried$count_book==0,],aes(x=hist_usd,y=med_star )) + geom_point(aes(colour=as.factor(count_book))) + geom_abline(slope=linear.model$coefficients[1],intercept=linear.model$coefficients[2]) + xlim(0,2000 )
 
 
-linear.model <- lm(med_star ~ hist_usd_sqrt,  data = summaried[summaried$hist_log<50,])
+linear.model <- lm(med_star ~ hist_usd_sqrt+I(hist_usd_sqrt^2)+I(hist_usd_sqrt^3),  data = summaried[summaried$hist_log<50,])
+anova(linear.model)
 linear.model2 <- lm(med_adr_sqrt ~ hist_usd,  data = summaried[summaried$hist_usd_sqrt<1000,])
 
 
@@ -149,11 +150,12 @@ predicted_valued.summary <- left_join(summaried,indextopredit_star, by="idx")
 predicted_valued.summary <- left_join(predicted_valued.summary,indextopredit_usr, by="idx")
 
 
-final.table <- left_join(training.search.new_features, predicted_valued.summary,by="srch_id")
-apply(final.table[,c("visitor_hist_starrating","med_star_predicted")],1,FUN=sum,na.rm = T)
+final.table <- left_join(training.search.new_features, predicted_valued.summary[,c("srch_id","med_usd_sqrt_predicted","med_star_predicted")],by="srch_id")
+
 
 final.table$visitor_hist_starrating <- apply(final.table[,c("visitor_hist_starrating","med_star_predicted")],1,FUN=sum,na.rm = T)
 final.table$visitor_hist_adr_usd <- apply(final.table[,c("visitor_hist_adr_usd","med_usd_sqrt_predicted")],1,FUN=sum,na.rm = T)
+
 
 #test missing value
 
@@ -174,51 +176,84 @@ ggplot(stratified,aes(x=prop_review_score)) + geom_density(aes(colour=as.factor(
 
 ggplot(stratified,aes(x=orig_destination_distance)) + geom_point(aes(colour=as.factor(responses)))
 
-ggplot(stratified,aes(x=prop_location_score2,y=clicks_counts_by_prop+bool_counts_by_prop)) + geom_point(aes(colour=as.factor(responses)))
+ggplot(stratified,aes(x=orig_destination_distance, y=srch_booking_window)) + geom_point(aes(colour=as.factor(responses)))
 
 ggplot(stratified,aes(x=clicks_counts_by_prop*bool_counts_by_prop)) + geom_density(aes(colour=as.factor(responses),group=prop_review_score))+xlim(0,10)
 
 ggplot(stratified,aes(x=prop_review_score,y=clicks_counts_by_prop*bool_counts_by_prop)) + geom_boxplot(aes(group=prop_review_score,colour=as.factor(prop_review_score)))
 
+final.table <- final.table %>% group_by(prop_review_score) %>% mutate(normalised_trick3=(clicks_counts_by_prop*bool_counts_by_prop)-mean(clicks_counts_by_prop*bool_counts_by_prop)/sd( clicks_counts_by_prop*bool_counts_by_prop))
 
-tabletotest <- final.table %>% group_by(prop_review_score) %>% mutate(normalised_trick3=(clicks_counts_by_prop*bool_counts_by_prop)-mean(clicks_counts_by_prop*bool_counts_by_prop)/sd( clicks_counts_by_prop*bool_counts_by_prop))
 
+# handling prop_review_score nearest to a group center.
 summary <- final.table %>%
        group_by(prop_review_score)%>%
        summarise(number=n(),mean_trick=mean(clicks_counts_by_prop*bool_counts_by_prop),
                  sd_trick=sd(clicks_counts_by_prop*bool_counts_by_prop),
                  mean_trick=mean(clicks_counts_by_prop*bool_counts_by_prop),
                  count_book=sum(booking_bool),count_click=sum(click_bool),
-                 book_freq =sum(booking_bool)/number ,click_freq=sum(click_bool)/number,mean_byrscore_group=mean(normalised_trick3))
+                 book_freq =sum(booking_bool)/number ,click_freq=sum(click_bool)/number,mean_byrscore_group=mean(normalised_trick3,na.rm=T))
 
 combinations <- (combn(seq(1,5,0.5),2))
 
 # testing all the group different
-for (j in seq(1,dim(combinations)[2])){
-  
-  print(t.test(normalised_trick3~as.factor(prop_review_score), 
-                 data=tabletotest[tabletotest$prop_review_score==combinations[1,j] | tabletotest$prop_review_score==combinations[2,j],])
-)
-}
+#for (j in seq(1,dim(combinations)[2])){
+#  
+#  print(t.test(normalised_trick3~as.factor(prop_review_score), 
+#                 data=tabletotest[tabletotest$prop_review_score==combinations[1,j] | tabletotest$prop_review_score==combinations[2,j],])
+#)
+#}
 
-
-dista <- function(x,groups_centers){
+# handle missing values of prop_review_score
+dista <- function(x){
   
-  min_dist = groups_centers[1,2]
+  min_dist = abs(x^2-groups_centers[1,2]^2)
   winner=1
-  for (i in seq(2,dim(group_centers)[1])){
+  for (i in seq(2,dim(groups_centers)[1])){
     
-   if (groups_centers[i,2] < min_dist){
-     min_dist = gruops_centers[i,2]
+   if (abs(x-groups_centers[i,2]) < min_dist){
+     min_dist = abs(x^2-groups_centers[i,2]^2)
      winner=i
    }
   }
- return(groups_centers[i,1]) 
+ return(as.integer(groups_centers[winner,1]))
 }
-# handling prop_review_score nearest to a group center.
+store <- final.table
 
-final.table[is.na(final.table$prop_review_score),"prop_review_score"] <- lappaly(data=summary[,c("prop_review_score","mean_byrscore_group")],FUN =dista())
+final.table <- store
 
+groups_centers <- summary[1:10,c("prop_review_score","mean_byrscore_group")]
+to_substitute <-  apply(final.table[is.na(final.table$prop_review_score),"normalised_trick3"],1,FUN =dista)
+
+final.table[is.na(final.table$prop_review_score),"prop_review_score"] <- to_substitute
+
+# handle missing values of srch_query_affinity_score
+
+fun.1 <- function(x){
+  return (-350*(1/(sqrt(x))) -12 )
+}
+
+final.table <- final.table %>%
+  mutate( srch_query_affinity_estimate = fun.1(trick2))
+
+final.table$srch_query_affinity_score[is.na(final.table$srch_query_affinity_score)] <- final.table$srch_query_affinity_estimate[is.na(final.table$srch_query_affinity_score)]
+
+final.table[is.na(final.table$prop_location_score2),"prop_location_score2"] <- min(final.table$prop_location_score2[!is.na(final.table$prop_location_score2)])
+final.table[is.na(final.table$orig_destination_distance),"orig_destination_distance"] <- median(final.table$orig_destination_distance[!is.na(final.table$orig_destination_distance)],na.rm = T )
+
+#test missing value
+
+missing_values = final.table %>% 
+  ungroup()%>% 
+  summarise_all(funs(100 * mean(is.na(.) ))) %>% 
+  gather(Variable, Value) %>% 
+  arrange(desc(Value)) %>% 
+  mutate(Variable = as_factor(Variable))
+View(missing_values)
+
+final.table <- final.table[,-c(74,75,54)]
 
 View(summary)
-write.csv(summary,"justify_prop_review_score.csv")      
+write.csv(summary,"justify_prop_review_score.csv")
+save(final.table,file="processed_missing_value.rda")   
+   
