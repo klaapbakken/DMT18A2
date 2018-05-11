@@ -11,9 +11,43 @@ preprocess_data = function(input_data, subsample = 0.10){
   # - - - - - - - - - - - - - - - 
   # Fix competitor missing values
   # - - - - - - - - - - - - - - -
+  message("Working on competitor features...")
+  # Count the number of NaN/-1/+1 values across compX_rate
+  comp_rate_missing = training_sampled %>% 
+    dplyr::select(ends_with("rate")) %>% 
+    by_row(
+      ..f = function(x) {
+        sum(is.na(x[1:8]))
+      },
+      .to = "comp_rate_na",
+      .collate = "cols"
+    ) %>% 
+    by_row(
+      ..f = function(x) {
+        sum(x[1:8] == 1, na.rm = T)
+      },
+      .to = "comp_rate_positive",
+      .collate = "cols"
+    ) %>% 
+    by_row(
+      ..f = function(x) {
+        sum(x[1:8] == -1, na.rm = T)
+      },
+      .to = "comp_rate_negative",
+      .collate = "cols"
+    ) %>% 
+    by_row(
+      ..f = function(x) {
+        sum(x[1:8] == 0, na.rm = T)
+      },
+      .to = "comp_rate_neutral",
+      .collate = "cols"
+    ) %>% 
+    dplyr::select(starts_with("comp_rate"))
+
   # Count the number of NaN/0/+1 values across compX_inv
   comp_inv_missing = input_data %>% 
-    select(ends_with("inv")) %>% 
+    dplyr::select(ends_with("inv")) %>% 
     by_row(
       ..f = function(x) {
         sum(is.na(x[1:8]))
@@ -35,37 +69,11 @@ preprocess_data = function(input_data, subsample = 0.10){
       .to = "comp_inv_neutral",
       .collate = "cols"
     ) %>% 
-    select(starts_with("comp_inv"))
-  
-  # Count the number of NaN/0/+1 values across compX_inv
-  comp_inv_missing = input_data %>% 
-    select(ends_with("inv")) %>% 
-    by_row(
-      ..f = function(x) {
-        sum(is.na(x[1:8]))
-      },
-      .to = "comp_inv_na",
-      .collate = "cols"
-    ) %>% 
-    by_row(
-      ..f = function(x) {
-        sum(x[1:8] == 1, na.rm = T)
-      },
-      .to = "comp_inv_positive",
-      .collate = "cols"
-    ) %>% 
-    by_row(
-      ..f = function(x) {
-        sum(x[1:8] == 0, na.rm = T)
-      },
-      .to = "comp_inv_neutral",
-      .collate = "cols"
-    ) %>% 
-    select(starts_with("comp_inv"))
+    dplyr::select(starts_with("comp_inv"))
   
   # Count the number of NaN/mean(abs) values across compX_rate_percent
   comp_rate_percent_missing = input_data %>% 
-    select(ends_with("rate_percent_diff")) %>% 
+    dplyr::select(ends_with("rate_percent_diff")) %>% 
     by_row(
       ..f = function(x) {
         sum(is.na(x[1:8]))
@@ -73,22 +81,26 @@ preprocess_data = function(input_data, subsample = 0.10){
       .to = "comp_rate_percent_diff_na",
       .collate = "cols"
     ) %>% 
-    select(starts_with("comp_rate_percent"))
+    dplyr::select(starts_with("comp_rate_percent"))
   
   # Cbind the existing data
   input_data = input_data %>% 
-    select(-ends_with("inv")) %>% 
-    select(-ends_with("rate")) %>% 
-    select(-ends_with("rate_percent_diff")) %>% 
+    #dplyr::select(-ends_with("inv")) %>% 
+    #dplyr::select(-ends_with("rate")) %>% 
+    #dplyr::select(-ends_with("rate_percent_diff")) %>% 
+    cbind(comp_rate_missing) %>% 
     cbind(comp_inv_missing) %>% 
-    cbind(comp_rate_percent_missing) %>% 
-    cbind(comp_inv_missing)
+    cbind(comp_rate_percent_missing)
+  
+  # Message
+  message("Finished working on competitor features...")
   
   
   # - - - - - - - - - - - - - - - 
   # Fix origin distance values
   # - - - - - - - - - - - - - - -
   # Replace NA values with the median/mean distances across the origin
+  message("Working on origin distance feature...")
   input_data = input_data %>% 
     replace_na(list(orig_destination_distance = median(.$orig_destination_distance, na.rm = T)))
   
@@ -97,6 +109,7 @@ preprocess_data = function(input_data, subsample = 0.10){
   # Fix location score #2 values
   # - - - - - - - - - - - - - - -
   # Set the location score #2 to the minimum value across all scores
+  message("Working on location score #2 feature...")
   input_data = input_data %>% 
     group_by(srch_destination_id) %>% 
     replace_na(list(prop_location_score2 = min(.$prop_location_score2, na.rm = T))) %>% 
@@ -115,6 +128,7 @@ preprocess_data = function(input_data, subsample = 0.10){
   # - - - - - - - - - - - - - - - 
   # Fix visitor values
   # - - - - - - - - - - - - - - -
+  message("Working on vistor values features...")
   # Flag new customers, impute by sampling from appropriate distribution
   
   visitor_indices <- which(na_features %in% features[5:7])
@@ -156,6 +170,7 @@ preprocess_data = function(input_data, subsample = 0.10){
   # - - - - - - - - - - - - - - - 
   # Fix competition flags
   # - - - - - - - - - - - - - - -
+  message("Working on competition values features...")
   # Flags for lowest price and only with availability
   
   comp_indices <- which(na_features %in% features[29:52])
@@ -180,6 +195,7 @@ preprocess_data = function(input_data, subsample = 0.10){
   # - - - - - - - - - - - - - - - 
   # Fix review score
   # - - - - - - - - - - - - - - -
+  message("Working on review score features...")
   # Imputing NA review score by value corresponding to 10% quantile
   
   property_indices <- which(na_features %in% features[9:15])
@@ -199,6 +215,7 @@ preprocess_data = function(input_data, subsample = 0.10){
   # - - - - - - - - - - - -
   # Subsample the dataframe
   # - - - - - - - - - - - -
+  message("Subsampling the data...")
   # Get the number of search queries
   subsample_size = length(levels(as.factor(input_data$srch_id))) * subsample
   
