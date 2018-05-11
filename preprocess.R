@@ -132,6 +132,7 @@ preprocess_data = function(input_data, subsample = 0.10){
   # Flag new customers, impute by sampling from appropriate distribution
   
   visitor_indices <- which(na_features %in% features[5:7])
+  print(na_features)
   visitor_features <- names(na_df[, visitor_indices])
   visitor_df <- na_df[, visitor_indices]
   
@@ -173,10 +174,11 @@ preprocess_data = function(input_data, subsample = 0.10){
     summarise(hist_usd = mean(price_usd),
               med_star= median(visitor_hist_starrating),
               hist_usd_sqrt = sqrt(mean(price_usd)),
+              med_adr = median(visitor_hist_adr_usd,na.rm=T),
               med_adr_sqrt=sqrt(med_adr))
   
-  model_star <- lm(med_star ~ hist_usd_sqrt+I(hist_usd_sqrt^2),  data = summaried[summaried$hist_log<50,])
-  model_usd <- lm(med_adr_sqrt ~ hist_usd,  data = summaried[summaried$hist_usd_sqrt<1000,])
+  model_star <- lm(med_star ~ hist_usd_sqrt+I(hist_usd_sqrt^2),  data = summaried[summaried$hist_usd_sqrt<50,])
+  model_usd <- lm(med_adr_sqrt ~ hist_usd,  data = summaried[summaried$hist_usd_sqrt<2000,])
   summaried$idx <- seq(from=1, to=dim(summaried)[1]) 
   
   indextopredit_star <- summaried[is.na(summaried$med_star),]
@@ -200,7 +202,7 @@ preprocess_data = function(input_data, subsample = 0.10){
   # - - - - - - - - - - - - - - -
   message("Working on competition values features...")
   # Flags for lowest price and only with availability
-  
+
   comp_indices <- which(na_features %in% features[29:52])
   comp_features <- names(na_df[, comp_indices])
   comp_df <- na_df[, comp_indices]
@@ -225,7 +227,8 @@ preprocess_data = function(input_data, subsample = 0.10){
   # - - - - - - - - - - - - - - -
   message("Working on review score features...")
   # Imputing NA review score by value corresponding to 10% quantile
-  input_data$prop_review_score_2 <- input_data$prop_review_score
+  input_data$prop_review_score_n <- input_data$prop_review_score
+  
   property_indices <- which(na_features %in% features[9:15])
   property_features <- names(na_df[, property_indices])
   
@@ -233,27 +236,34 @@ preprocess_data = function(input_data, subsample = 0.10){
   
   
   #imputing in alterative way the prop_score review
+  #summary by hotels
+  summary.hotels <- input_data %>%
+    group_by(prop_country_id,prop_id) %>%
+    summarise(count=n(), bool_counts_by_prop  = sum(booking_bool),relative_bool= sum(booking_bool)/n(),  clicks_counts_by_prop = sum(click_bool), relative_click= sum(click_bool)/n())
+  
 
+  input_data <- left_join(input_data,summary.hotels,by=c('prop_country_id','prop_id'))
+  
+  input_data <- input_data %>% group_by(prop_review_score) %>% mutate(normalised_trick3=(clicks_counts_by_prop*bool_counts_by_prop)-mean(clicks_counts_by_prop*bool_counts_by_prop)/sd( clicks_counts_by_prop*bool_counts_by_prop))
   
   summary_for_prop_score <- input_data %>%
-    group_by(prop_review_score_2)%>%
+    group_by(prop_review_score_n)%>%
     summarise(number=n(),mean_trick=mean(clicks_counts_by_prop*bool_counts_by_prop),
               sd_trick=sd(clicks_counts_by_prop*bool_counts_by_prop),
               mean_trick=mean(clicks_counts_by_prop*bool_counts_by_prop),
               count_book=sum(booking_bool),count_click=sum(click_bool),
               book_freq =sum(booking_bool)/number ,click_freq=sum(click_bool)/number,mean_byrscore_group=mean(normalised_trick3,na.rm=T))
-  
-  input_data <- input_data %>% group_by(prop_review_score) %>% mutate(normalised_trick3=(clicks_counts_by_prop*bool_counts_by_prop)-mean(clicks_counts_by_prop*bool_counts_by_prop)/sd( clicks_counts_by_prop*bool_counts_by_prop))
+  print(summary_for_prop_score)
   combinations <- (combn(seq(1,5,0.5),2))
   
   
   # handle missing values of prop_review_score
   dista <- function(x){
-    
+    print(x)
     min_dist = abs(x^2-groups_centers[1,2]^2)
     winner=1
+    
     for (i in seq(2,dim(groups_centers)[1])){
-      
       if (abs(x-groups_centers[i,2]) < min_dist){
         min_dist = abs(x^2-groups_centers[i,2]^2)
         winner=i
@@ -262,10 +272,10 @@ preprocess_data = function(input_data, subsample = 0.10){
     return(as.integer(groups_centers[winner,1]))
   }
   
-  groups_centers <- summary_for_prop_score[1:10,c("prop_review_score_2","mean_byrscore_group")]
-  to_substitute <-  apply(inputdata[is.na(final.table$prop_review_score),"normalised_trick3"],1,FUN =dista)
+  groups_centers <- summary_for_prop_score[1:10,c("prop_review_score_n","mean_byrscore_group")]
+  to_substitute <-  apply(input_data[is.na(input_data$prop_review_score_n),"normalised_trick3"],1,FUN =dista)
   
-  input_data[is.na(final.table$prop_review_score_2),"prop_review_score_2"] <- to_substitute
+  input_data[is.na(final.table$prop_review_score_n),"prop_review_score_n"] <- to_substitute
   
 
   # - - - - - - - - - - - - - - - 
@@ -285,7 +295,7 @@ preprocess_data = function(input_data, subsample = 0.10){
   
   input_data <- input_data %>%
     mutate(responses = case_when(click_bool == 0 & booking_bool == 0 ~ 0,click_bool == 1 & booking_bool == 0 ~ 0.5,click_bool == 1 & booking_bool == 1 ~ 1)) %>%
-    mutate(group_size = srch_adults_count+srch_children_count, group_size_normalized_by_room = (srch_adults_count+srch_children_count)/srch_room_count)
+    mutate(group_size = srch_adults_count+srch_children_count,srch_room_count=, group_size_normalized_by_room = (srch_adults_count+srch_children_count)/srch_room_count)
   
   input_data <- input_data %>% 
     mutate(trick = ((case_when(promotion_flag == '0' ~ 1, promotion_flag == '1' ~ 2)*case_when(srch_saturday_night_bool == '0' ~ 1, srch_saturday_night_bool == '1' ~ 2))*(srch_length_of_stay*srch_booking_window*group_size))) %>%
@@ -299,7 +309,7 @@ preprocess_data = function(input_data, subsample = 0.10){
   input_data <- input_data %>%
     mutate( srch_query_affinity_estimate = fun.1(trick2))
   
-  input_data$srch_query_affinity_score_2[is.na(final.table$srch_query_affinity_score_2)] <- input_data$srch_query_affinity_estimate[is.na(final.table$srch_query_affinity_score_2)]
+  input_data$srch_query_affinity_score_2[is.na(input_data$srch_query_affinity_score_2)] <- input_data$srch_query_affinity_estimate[is.na(input_data$srch_query_affinity_score_2)]
   
   # - - - - - - - - - - - - - - - 
   # Altering original data, adding new columns
@@ -348,17 +358,44 @@ preprocess_data = function(input_data, subsample = 0.10){
   input_data.click <- input_data[input_data$click_bool==1 & input_data$booking_bool == 0,]
   input_data.book <- input_data[input_data$click_bool==1 & input_data$booking_bool == 1,] 
   input_data.notbook <- input_data[input_data$click_bool==0 & input_data$booking_bool == 0,]
-  
-  stratified <- rbind(sample_n(input_data.click,n=83489),sample_n(input_data.book,n=83489),sample_n(input_data.notbook,n=83489))
+  N <- dim(input_data.click)[1]
+  stratified <- rbind(sample_n(input_data.click,size =N,replace=T),sample_n(input_data.book,size=N,replace=T),sample_n(input_data.notbook,size=N,replace=T))
     
   return(stratified)
-  return(input_data_subsampled)
-}
+  #return(input_data_subsampled)
+} 
 
 
 # Run the function to process entire training data and save to new object
 load("data/training_processed.rda")
-training_process_subsampled = preprocess_data(training)
+
+traing_1 <- training[training$prop_review_score==0,"srch_id"]
+traing_2 <- training[training$prop_review_score==1,"srch_id"]
+traing_3 <- training[training$prop_review_score==1.5,"srch_id"]
+traing_4 <- training[training$prop_review_score==2,"srch_id"]
+traing_5 <- training[training$prop_review_score==2.5,"srch_id"]
+traing_6 <- training[training$prop_review_score==3,"srch_id"]
+traing_7 <- training[training$prop_review_score==3.5,"srch_id"]
+traing_8 <- training[training$prop_review_score==4,"srch_id"]
+traing_9 <- training[training$prop_review_score==4.5,"srch_id"]
+traing_10 <- training[training$prop_review_score==5,"srch_id"]
+traing_11 <- training[training$prop_review_score=='',"srch_id"]
+
+triang <- rbind(traing_1,
+                traing_2, 
+                traing_3,
+                traing_4,
+                traing_5,
+                traing_6,
+                traing_7,
+                traing_8,
+                traing_9,
+                traing_10,
+                traing_11)
+
+
+
+training_process_subsampled = preprocess_data(training[training$srch_id %in% triang,])
 save(file = "data/preprocessed.rda", training_data_subsampled)
 
 
