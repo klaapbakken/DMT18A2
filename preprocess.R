@@ -128,7 +128,7 @@ preprocess_data = function(input_data, subsample = 0.10){
   # - - - - - - - - - - - - - - - 
   # Fix visitor values
   # - - - - - - - - - - - - - - -
-  message("Working on vistor values features...")
+  message("Working on visitor values features...")
   # Flag new customers, impute by sampling from appropriate distribution
   
   visitor_indices <- which(na_features %in% features[5:7])
@@ -167,6 +167,34 @@ preprocess_data = function(input_data, subsample = 0.10){
   
   add_visitor_df <- data.frame(new_visitor)
   
+  # impute visitor history features via linear modelling
+  summaried <- input_data %>%
+    group_by(srch_id) %>%
+    summarise(hist_usd = mean(price_usd),
+              med_star= median(visitor_hist_starrating),
+              hist_usd_sqrt = sqrt(mean(price_usd)),
+              med_adr_sqrt=sqrt(med_adr))
+  
+  model_star <- lm(med_star ~ hist_usd_sqrt+I(hist_usd_sqrt^2),  data = summaried[summaried$hist_log<50,])
+  model_usd <- lm(med_adr_sqrt ~ hist_usd,  data = summaried[summaried$hist_usd_sqrt<1000,])
+  summaried$idx <- seq(from=1, to=dim(summaried)[1]) 
+  
+  indextopredit_star <- summaried[is.na(summaried$med_star),]
+  indextopredit_usr <- summaried[is.na(summaried$med_adr_sqrt ),]
+  
+  indextopredit_star$med_star_predicted <- predict.lm(model_star,sqrt(summaried[is.na(summaried$med_star),"hist_usd_sqrt"]))
+  indextopredit_usr$med_usd_sqrt_predicted <- predict.lm(model_usd,summaried[is.na(summaried$med_adr_sqrt),"hist_usd"])
+  
+  indextopredit_usr$med_usd_sqrt_predicted <- indextopredit_usr$med_usd_sqrt_predicted^2
+  predicted_valued.summary <- left_join(summaried,indextopredit_star, by="idx")
+  predicted_valued.summary <- left_join(predicted_valued.summary,indextopredit_usr, by="idx")
+  
+  add_to_visitor <- left_join(input_data, predicted_valued.summary[,c("srch_id","med_usd_sqrt_predicted","med_star_predicted")],by="srch_id")
+  
+  # create the two new variable
+  add_visitor_df$visitor_hist_starrating_lm <- apply(add_to_visitor[,c("visitor_hist_starrating","med_star_predicted")],1,FUN=sum,na.rm = T)
+  add_visitor_df$visitor_hist_adr_usd_lm <- apply(add_to_visitor[,c("visitor_hist_adr_usd","med_usd_sqrt_predicted")],1,FUN=sum,na.rm = T)
+  
   # - - - - - - - - - - - - - - - 
   # Fix competition flags
   # - - - - - - - - - - - - - - -
@@ -197,22 +225,81 @@ preprocess_data = function(input_data, subsample = 0.10){
   # - - - - - - - - - - - - - - -
   message("Working on review score features...")
   # Imputing NA review score by value corresponding to 10% quantile
-  
+  input_data$prop_review_score_2 <- input_data$prop_review_score
   property_indices <- which(na_features %in% features[9:15])
   property_features <- names(na_df[, property_indices])
   
   low_review_score <- quantile(na_df$prop_review_score, probs = c(0.1), na.rm=TRUE)
   
   
+  #imputing in alterative way the prop_score review
+
+  
+  summary_for_prop_score <- input_data %>%
+    group_by(prop_review_score_2)%>%
+    summarise(number=n(),mean_trick=mean(clicks_counts_by_prop*bool_counts_by_prop),
+              sd_trick=sd(clicks_counts_by_prop*bool_counts_by_prop),
+              mean_trick=mean(clicks_counts_by_prop*bool_counts_by_prop),
+              count_book=sum(booking_bool),count_click=sum(click_bool),
+              book_freq =sum(booking_bool)/number ,click_freq=sum(click_bool)/number,mean_byrscore_group=mean(normalised_trick3,na.rm=T))
+  
+  input_data <- input_data %>% group_by(prop_review_score) %>% mutate(normalised_trick3=(clicks_counts_by_prop*bool_counts_by_prop)-mean(clicks_counts_by_prop*bool_counts_by_prop)/sd( clicks_counts_by_prop*bool_counts_by_prop))
+  combinations <- (combn(seq(1,5,0.5),2))
+  
+  
+  # handle missing values of prop_review_score
+  dista <- function(x){
+    
+    min_dist = abs(x^2-groups_centers[1,2]^2)
+    winner=1
+    for (i in seq(2,dim(groups_centers)[1])){
+      
+      if (abs(x-groups_centers[i,2]) < min_dist){
+        min_dist = abs(x^2-groups_centers[i,2]^2)
+        winner=i
+      }
+    }
+    return(as.integer(groups_centers[winner,1]))
+  }
+  
+  groups_centers <- summary_for_prop_score[1:10,c("prop_review_score_2","mean_byrscore_group")]
+  to_substitute <-  apply(inputdata[is.na(final.table$prop_review_score),"normalised_trick3"],1,FUN =dista)
+  
+  input_data[is.na(final.table$prop_review_score_2),"prop_review_score_2"] <- to_substitute
+  
+
   # - - - - - - - - - - - - - - - 
   # Fix competition flags
   # - - - - - - - - - - - - - - -
   message("Working on affinity feature")
   # Temporary method for imputing affinity, imputing with min
+  input_data$srch_query_affinity_score_2 <- input_data$srch_query_affinity_score
+  
   
   affinity <- input_data$srch_query_affinity_score
   input_data$srch_query_affinity_score[
     is.na(affinity)] <- min(affinity, na.rm=TRUE)
+  
+  #alternative to impute NA affinity value
+  message("Compute new features to impute NA affinity via fitting hyperbole...")
+  
+  input_data <- input_data %>%
+    mutate(responses = case_when(click_bool == 0 & booking_bool == 0 ~ 0,click_bool == 1 & booking_bool == 0 ~ 0.5,click_bool == 1 & booking_bool == 1 ~ 1)) %>%
+    mutate(group_size = srch_adults_count+srch_children_count, group_size_normalized_by_room = (srch_adults_count+srch_children_count)/srch_room_count)
+  
+  input_data <- input_data %>% 
+    mutate(trick = ((case_when(promotion_flag == '0' ~ 1, promotion_flag == '1' ~ 2)*case_when(srch_saturday_night_bool == '0' ~ 1, srch_saturday_night_bool == '1' ~ 2))*(srch_length_of_stay*srch_booking_window*group_size))) %>%
+    mutate(affinity = relative_bool * relative_click, affinity_log =  ((relative_bool * relative_click) + count)) %>%
+    mutate(trick2 = ((srch_length_of_stay*srch_booking_window*group_size)+count))
+  
+  fun.1 <- function(x){
+    return ((-350*(1/(sqrt(x))) -12) +rnorm(1))
+  }
+  
+  input_data <- input_data %>%
+    mutate( srch_query_affinity_estimate = fun.1(trick2))
+  
+  input_data$srch_query_affinity_score_2[is.na(final.table$srch_query_affinity_score_2)] <- input_data$srch_query_affinity_estimate[is.na(final.table$srch_query_affinity_score_2)]
   
   # - - - - - - - - - - - - - - - 
   # Altering original data, adding new columns
@@ -233,16 +320,17 @@ preprocess_data = function(input_data, subsample = 0.10){
   # - - - - - - - - - - - - - - - - - -
   # Fix NA values for competitors
   # - - - - - - - - - - - - - - - - - -
-  # Setting every NA to zero
+  # Setting every NA to 2
   
   imputed_comp_df <- comp_df
-  imputed_comp_df[is.na(comp_df)] <- 0
+  imputed_comp_df[is.na(comp_df)] <- 2
   input_data[, seq(29,52)] <- imputed_comp_df
+  
   
   # - - - - - - - - - - - -
   # Subsample the dataframe
   # - - - - - - - - - - - -
-  message("Subsampling the data...")
+  message("Subsampling stratified the data...")
   # Get the number of search queries
   subsample_size = length(levels(as.factor(input_data$srch_id))) * subsample
   
@@ -254,6 +342,16 @@ preprocess_data = function(input_data, subsample = 0.10){
     filter(srch_id %in% subsample_idx)
   
   # Return dataframe with imputed values
+  
+  message("Subsampling stratified the data...")
+  
+  input_data.click <- input_data[input_data$click_bool==1 & input_data$booking_bool == 0,]
+  input_data.book <- input_data[input_data$click_bool==1 & input_data$booking_bool == 1,] 
+  input_data.notbook <- input_data[input_data$click_bool==0 & input_data$booking_bool == 0,]
+  
+  stratified <- rbind(sample_n(input_data.click,n=83489),sample_n(input_data.book,n=83489),sample_n(input_data.notbook,n=83489))
+    
+  return(stratified)
   return(input_data_subsampled)
 }
 

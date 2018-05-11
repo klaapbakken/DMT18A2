@@ -119,10 +119,10 @@ ggplot(stratified,aes(y=orig_destination_distance ,x=(srch_id-prop_country_id) )
 
 summaried <- training.search.new_features %>%
   group_by(srch_id) %>%
-  summarise(rating = mean(prop_starrating),hist_usd_log = log(mean(price_usd)+1),hist_usd = mean(price_usd),hist_usd_gross = mean(gross_bookings_usd,na.rm=T),
-            med_star= median(visitor_hist_starrating), count_book= sum(booking_bool), count_click= sum(click_bool),
-            med_adr= median(visitor_hist_adr_usd), hist_log= log(hist_usd_gross+1), med_adr_log = log(med_adr+1),
-            hist_gross_sqrt = sqrt(mean(gross_bookings_usd,na.rm=T)),hist_usd_sqrt = sqrt(mean(price_usd)),med_adr_sqrt=sqrt(med_adr), hist_demean=hist_usd-mean(hist_usd))
+  summarise(hist_usd = mean(price_usd),
+            med_star= median(visitor_hist_starrating),
+            hist_usd_sqrt = sqrt(mean(price_usd)),
+            med_adr_sqrt=sqrt(med_adr))
 
 ggplot(summaried,aes(x=hist_usd,y=med_adr_sqrt )) + geom_point(aes(colour=as.factor(count_book))) + geom_abline(slope=linear.model2$coefficients[1],intercept=linear.model2$coefficients[2]) + xlim(0,2000 )
 ggplot(summaried,aes(x=hist_usd_sqrt,y=med_star )) + geom_point(aes(colour=as.factor(count_book))) + geom_abline(slope=linear.model$coefficients[1],intercept=linear.model$coefficients[2]) + xlim(0,30 )
@@ -182,7 +182,6 @@ ggplot(stratified,aes(x=clicks_counts_by_prop*bool_counts_by_prop)) + geom_densi
 
 ggplot(stratified,aes(x=prop_review_score,y=clicks_counts_by_prop*bool_counts_by_prop)) + geom_boxplot(aes(group=prop_review_score,colour=as.factor(prop_review_score)))
 
-final.table <- final.table %>% group_by(prop_review_score) %>% mutate(normalised_trick3=(clicks_counts_by_prop*bool_counts_by_prop)-mean(clicks_counts_by_prop*bool_counts_by_prop)/sd( clicks_counts_by_prop*bool_counts_by_prop))
 
 
 # handling prop_review_score nearest to a group center.
@@ -194,6 +193,7 @@ summary <- final.table %>%
                  count_book=sum(booking_bool),count_click=sum(click_bool),
                  book_freq =sum(booking_bool)/number ,click_freq=sum(click_bool)/number,mean_byrscore_group=mean(normalised_trick3,na.rm=T))
 
+final.table <- final.table %>% group_by(prop_review_score) %>% mutate(normalised_trick3=(clicks_counts_by_prop*bool_counts_by_prop)-mean(clicks_counts_by_prop*bool_counts_by_prop)/sd( clicks_counts_by_prop*bool_counts_by_prop))
 combinations <- (combn(seq(1,5,0.5),2))
 
 # testing all the group different
@@ -203,6 +203,19 @@ combinations <- (combn(seq(1,5,0.5),2))
 #                 data=tabletotest[tabletotest$prop_review_score==combinations[1,j] | tabletotest$prop_review_score==combinations[2,j],])
 #)
 #}
+
+
+summary <- final.table %>%
+  group_by(prop_review_score)%>%
+  summarise(number=n(),mean_trick=mean(clicks_counts_by_prop*bool_counts_by_prop),
+            sd_trick=sd(clicks_counts_by_prop*bool_counts_by_prop),
+            mean_trick=mean(clicks_counts_by_prop*bool_counts_by_prop),
+            count_book=sum(booking_bool),count_click=sum(click_bool),
+            book_freq =sum(booking_bool)/number ,click_freq=sum(click_bool)/number,mean_byrscore_group=mean(normalised_trick3,na.rm=T))
+
+final.table <- final.table %>% group_by(prop_review_score) %>% mutate(normalised_trick3=(clicks_counts_by_prop*bool_counts_by_prop)-mean(clicks_counts_by_prop*bool_counts_by_prop)/sd( clicks_counts_by_prop*bool_counts_by_prop))
+combinations <- (combn(seq(1,5,0.5),2))
+
 
 # handle missing values of prop_review_score
 dista <- function(x){
@@ -230,7 +243,7 @@ final.table[is.na(final.table$prop_review_score),"prop_review_score"] <- to_subs
 # handle missing values of srch_query_affinity_score
 
 fun.1 <- function(x){
-  return (-350*(1/(sqrt(x))) -12 )
+  return ((-350*(1/(sqrt(x))) -12) +rnorm(1))
 }
 
 final.table <- final.table %>%
