@@ -212,6 +212,12 @@ preprocess_data = function(input_data, subsample = 0.10){
   input_data$visitor_hist_adr_usd <- visitor_usd_complete
   input_data <- cbind(input_data, add_visitor_df, add_comp_df)
   
+  # - - - - - - - - - - - - - - - - - -
+  # Remove gross_bookings_usd
+  # - - - - - - - - - - - - - - - - - -
+  # Feature is not included in the testing set
+  input_data = dplyr::select(input_data, -gross_bookings_usd)
+  
   # - - - - - - - - - - - -
   # Subsample the dataframe
   # - - - - - - - - - - - -
