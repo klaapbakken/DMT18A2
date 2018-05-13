@@ -1,5 +1,5 @@
 rm(list = ls())
-load("../data/training_processed.rda")
+load("../data/naive_preprocessed.rda")
 features <- names(training)
 df <- training
 df$comp1_rate <- as.integer(df$comp1_rate)

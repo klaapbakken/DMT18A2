@@ -1,18 +1,8 @@
-test = FALSE
+rm(list=ls())
 
-features <- names(df)
-
-na_count <- colSums(is.na(df))
-no_na_features <- names(na_count[na_count == 0])
-no_na_indices <- which(features %in% no_na_features)
-
-no_na_df <- df[, no_na_indices]
-
-if (test){
-  srch_ids <- no_na_df$srch_id
-  srch_ids.unique <- unique(srch_ids)
-  no_na_df <- subset(no_na_df, srch_id %in% srch_ids.unique[1:100])
-}
+load("../data/naive_preprocessed.rda")
+df <- training_process_subsampled
+rm(training_process_subsampled)
 
 iterated_logreg_reduction <- function(df){
   feat <- names(df)
@@ -30,7 +20,7 @@ iterated_logreg_reduction <- function(df){
   return(logreg)
 }
 
-logreg <- iterated_logreg_reduction(merged_df)
+logreg <- iterated_logreg_reduction(df)
 
 summary <- summary(logreg)
 Rsq <- 1 - summary$deviance/summary$null.deviance
