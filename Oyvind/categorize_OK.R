@@ -24,7 +24,9 @@ prop_df <- df[, prop_features]
 #abline(v=8)
 
 prop_cluster <- kmeans(prop_df, 8)
-prop_cluster$cluster[0:50]
+prop_category <- data.frame(prop_category = as.factor(prop_cluster$cluster))
+
+save(file="../data/c")
 
 library(cluster)
 library('fpc')
@@ -32,4 +34,4 @@ library('fpc')
 
 plotcluster(prop_df[, c(2, 6)], prop_cluster$cluster)
 
-predict.kmeans(prop_cluster, data=df[, prop_features])
+

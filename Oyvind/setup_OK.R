@@ -13,6 +13,9 @@ library(corrplot)
 library(stats)
 library(arules)
 library(MASS)
+library(cluster)
+library('fpc')
+
 
 data_split <- 0.1
 
