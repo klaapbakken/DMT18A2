@@ -273,7 +273,7 @@ preprocess_data = function(input_data, subsample = 0.10){
   groups_centers <- summary_for_prop_score[1:10,c("prop_review_score_n","mean_byrscore_group")]
   to_substitute <-  apply(input_data[is.na(input_data$prop_review_score_n),"normalised_trick3"],1,FUN =dista)
   
-  input_data[is.na(final.table$prop_review_score_n),"prop_review_score_n"] <- to_substitute
+  input_data[is.na(input_data$prop_review_score_n),"prop_review_score_n"] <- to_substitute
   
 
   # - - - - - - - - - - - - - - - 
