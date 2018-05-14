@@ -292,8 +292,12 @@ preprocess_data = function(input_data, subsample = 0.10){
   message("Compute new features to impute NA affinity via fitting hyperbole...")
   
   input_data <- input_data %>%
-    mutate(responses = case_when(click_bool == 0 & booking_bool == 0 ~ 0,click_bool == 1 & booking_bool == 0 ~ 0.5,click_bool == 1 & booking_bool == 1 ~ 1)) %>%
-    mutate(group_size = srch_adults_count+srch_children_count,srch_room_count=, group_size_normalized_by_room = (srch_adults_count+srch_children_count)/srch_room_count)
+    mutate(responses = case_when(click_bool == 0 & booking_bool == 0 ~ 0,
+                                 click_bool == 1 & booking_bool == 0 ~ 0.5,
+                                 click_bool == 1 & booking_bool == 1 ~ 1)) %>%
+    mutate(group_size = srch_adults_count + srch_children_count,
+           srch_room_count= , 
+           group_size_normalized_by_room = (srch_adults_count+srch_children_count)/srch_room_count)
   
   input_data <- input_data %>% 
     mutate(trick = ((case_when(promotion_flag == '0' ~ 1, promotion_flag == '1' ~ 2)*case_when(srch_saturday_night_bool == '0' ~ 1, srch_saturday_night_bool == '1' ~ 2))*(srch_length_of_stay*srch_booking_window*group_size))) %>%
@@ -340,14 +344,14 @@ preprocess_data = function(input_data, subsample = 0.10){
   # - - - - - - - - - - - -
   message("Subsampling stratified the data...")
   # Get the number of search queries
-  subsample_size = length(levels(as.factor(input_data$srch_id))) * subsample
+  #subsample_size = length(levels(as.factor(input_data$srch_id))) * subsample
   
   # Gather X% of training queries
-  subsample_idx = sample(levels(as.factor(input_data$srch_id)), size = ceiling(subsample_size))
+  #subsample_idx = sample(levels(as.factor(input_data$srch_id)), size = ceiling(subsample_size))
   
   # Keep only sampled queries
-  input_data_subsampled = input_data %>% 
-    filter(srch_id %in% subsample_idx)
+  #input_data_subsampled = input_data %>% 
+  #  filter(srch_id %in% subsample_idx)
   
   # Return dataframe with imputed values
   
@@ -359,14 +363,15 @@ preprocess_data = function(input_data, subsample = 0.10){
   N <- dim(input_data.click)[1]
   stratified <- rbind(sample_n(input_data.click,size =N,replace=T),sample_n(input_data.book,size=N,replace=T),sample_n(input_data.notbook,size=N,replace=T))
     
-  return(stratified)
+  return(list(input_data = input_data, 
+              stratified = stratified))
   #return(input_data_subsampled)
 } 
 
 
 # Run the function to process entire training data and save to new object
 load("data/training_processed.rda")
-training_process_subsampled = preprocess_data(training)
-save(file = "data/preprocessed.rda", training_data_subsampled)
-
+training_process = preprocess_data(training)
+save(file = "data/preprocessed.rda", training_process$input_data)
+save(file = "data/preprocessed_subsampled.rda", training_process$stratified)
 
