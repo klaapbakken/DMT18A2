@@ -39,6 +39,8 @@ booked_df <- rbind(df_booked, dplyr::sample_n(ncb_df, m))
 booked_remove <- c(seq(1,4), seq(29,52), seq(55,58), 5, 8, 9, 19, 53)
 booked_df <- booked_df[, -booked_remove]
 
+#Combining
+
 altered_click_df <- click_df
 altered_click_df$click_bool <- 1/5
 combined_df <- rbind(booked_df, altered_click_df)
