@@ -28,6 +28,31 @@ ndcg <- function(ranking, result){
   return(data.frame(CG, DCG, nDCG))
 }
 
+opt_ndcg <- function(ranking, result){
+  #Highest ranked prop_id first in ranking
+  #Result is actual relevance of properties in search query
+  #Result is data frame containg srch_id (constant), prop_id and score
+  relevance_of <- function (prop_id_i) result$relevance[result$prop_id == prop_id_i]
+  rel <- sapply(ranking, relevance_of)
+  
+  dcg_of <- function (rel, i) (2^rel[i] - 1)/log2(i+1)
+  dcg_terms <- sapply(seq(1, length(rel)), dcg_of, rel=rel)
+  
+  CG <- sum(rel)
+  DCG <- sum(dcg_terms)
+  
+  ordered_result <- result[order(result$relevance, decreasing=TRUE), ]
+  
+  idcg_term <- sapply(seq(1, length(ordered_result$prop_id)),
+                      dcg_of, rel=ordered_result$relevance)
+  
+  IDCG <- sum(idcg_term)
+  
+  nDCG <- DCG/IDCG
+  
+  return(data.frame(CG, DCG, nDCG))
+}
+
 load("../data/naive_preprocessed.rda")
 df <- training_process_subsampled
 rm(training_process_subsampled)
@@ -195,7 +220,7 @@ for (i in 1:length(queries)){
   result$prop_id <- as.numeric(result$prop_id)
   test_df_i <- test_df[query_i, ]
   ranking <- as.numeric(test_df_i[order(predicted_relevance[query_i], decreasing=TRUE), ]$prop_id)
-  ndcg_i <- ndcg(ranking, result)["nDCG"]
+  ndcg_i <- opt_ndcg(ranking, result)["nDCG"]
   average_ndcg <- average_ndcg + ndcg_i
 }
 average_ndcg <- average_ndcg/length(queries)
