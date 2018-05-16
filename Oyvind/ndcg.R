@@ -12,10 +12,10 @@ ndcg <- function(ranking, result){
   dcg_term <- numeric(length(ranking))
   for (i in 1:length(ranking)){
     rel[i] <- relevance_of(ranking[i])
-    dcg_term[i] <- rel[i]/log2(i+1)
+    dcg_term[i] <- (2^rel[i] - 1)/log2(i+1)
   }
-  CG <- cumsum(rel)
-  DCG <- cumsum(dcg_term)
+  CG <- sum(rel)
+  DCG <- sum(dcg_term)
   
   ordered_result <- result[order(result$relevance, decreasing=TRUE), ]
   
@@ -24,11 +24,14 @@ ndcg <- function(ranking, result){
     idcg_term[i] <- (2^relevance_of(ordered_result$prop_id[i]) - 1)/log2(i+1)
   }
   
-  IDCG <- cumsum(idcg_term)
+  IDCG <- sum(idcg_term)
   
   nDCG <- DCG/IDCG
   
   return(data.frame(CG, DCG, nDCG))
 }
+ndcg(sample(test_ranking), test_result)
 
-ndcg(test_ranking, test_result)
+best_ranking <- test_result$prop_id[order(test_result$relevance, decreasing=TRUE)]
+
+ndcg(best_ranking, test_result)

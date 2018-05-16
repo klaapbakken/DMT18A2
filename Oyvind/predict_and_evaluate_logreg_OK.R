@@ -9,7 +9,7 @@ ndcg <- function(ranking, result){
   dcg_term <- numeric(length(ranking))
   for (i in 1:length(ranking)){
     rel[i] <- relevance_of(ranking[i])
-    dcg_term[i] <- rel[i]/log2(i+1)
+    dcg_term[i] <- (2^rel[i] - 1)/log2(i+1)
   }
   CG <- sum(rel)
   DCG <- sum(dcg_term)
