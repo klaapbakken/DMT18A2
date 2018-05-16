@@ -252,7 +252,7 @@ preprocess_data = function(input_data, subsample = 0.10){
               mean_trick=mean(clicks_counts_by_prop*bool_counts_by_prop),
               count_book=sum(booking_bool),count_click=sum(click_bool),
               book_freq =sum(booking_bool)/number ,click_freq=sum(click_bool)/number,mean_byrscore_group=mean(normalised_trick3,na.rm=T))
-  print(summary_for_prop_score)
+  #print(summary_for_prop_score)
   combinations <- (combn(seq(1,5,0.5),2))
   
   
@@ -296,7 +296,7 @@ preprocess_data = function(input_data, subsample = 0.10){
                                  click_bool == 1 & booking_bool == 0 ~ 0.5,
                                  click_bool == 1 & booking_bool == 1 ~ 1)) %>%
     mutate(group_size = srch_adults_count + srch_children_count,
-           srch_room_count= , 
+           srch_room_count = srch_room_count, 
            group_size_normalized_by_room = (srch_adults_count+srch_children_count)/srch_room_count)
   
   input_data <- input_data %>% 
@@ -317,10 +317,10 @@ preprocess_data = function(input_data, subsample = 0.10){
   # Altering original data, adding new columns
   # - - - - - - - - - - - - - - -
   
-  input_data$prop_review_score[is.na(input_data$prop_review_score)] <- low_review_score
+  input_data$prop_review_score[is.na(input_data$prop_review_score)] <- low_review_score[[1]]
   input_data$visitor_hist_starrating <- visitor_stars_complete
   input_data$visitor_hist_adr_usd <- visitor_usd_complete
-  input_data <- cbind(input_data, add_visitor_df, add_comp_df)
+  input_data <- cbind.data.frame(input_data, add_visitor_df, add_comp_df)
   
   # - - - - - - - - - - - - - - - - - -
   # Remove gross_bookings_usd
@@ -342,7 +342,7 @@ preprocess_data = function(input_data, subsample = 0.10){
   # - - - - - - - - - - - -
   # Subsample the dataframe
   # - - - - - - - - - - - -
-  message("Subsampling stratified the data...")
+  #message("Subsampling stratified the data...")
   # Get the number of search queries
   #subsample_size = length(levels(as.factor(input_data$srch_id))) * subsample
   
