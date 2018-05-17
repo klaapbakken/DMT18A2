@@ -11,7 +11,7 @@
 source activate datamining
 
 # Run Rscript
-Rscript preprocess.R
+Rscript workflow.R
 
 # Deactivate env
 #deactivate
