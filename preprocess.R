@@ -4,14 +4,23 @@
 library(tidyverse)
 library(purrrlyr)
 library(MASS)
+#library(parallel)
 
 # Function to return preprocessed dataframe
 preprocess_data = function(input_data, subsample = 0.10){
+  
+  # Calculate the number of cores
+  #no_cores <- detectCores() - 1
+  
+  # Initiate cluster
+  #cl <- makeCluster(no_cores)
   
   # - - - - - - - - - - - - - - - 
   # Fix competitor missing values
   # - - - - - - - - - - - - - - -
   message("Working on competitor features...")
+  start.time <- Sys.time()
+  
   # Count the number of NaN/-1/+1 values across compX_rate
   comp_rate_missing = input_data %>% 
     dplyr::select(ends_with("rate")) %>% 
@@ -94,6 +103,10 @@ preprocess_data = function(input_data, subsample = 0.10){
   
   # Message
   message("Finished working on competitor features...")
+  message(Sys.time() - start.time)
+  
+  # Stop cluster
+  #stopCluster(cl)
   
   
   # - - - - - - - - - - - - - - - 
@@ -367,11 +380,3 @@ preprocess_data = function(input_data, subsample = 0.10){
               stratified = stratified))
   #return(input_data_subsampled)
 } 
-
-
-# Run the function to process entire training data and save to new object
-load("data/training_processed.rda")
-training_process = preprocess_data(training)
-save(file = "data/preprocessed.rda", training_process$input_data)
-save(file = "data/preprocessed_subsampled.rda", training_process$stratified)
-

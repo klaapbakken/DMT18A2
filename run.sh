@@ -2,8 +2,8 @@
 #$ -cwd
 #$ -S /bin/bash
 #$ -N DataMining
-#$ -l mem_free=64G
-#$ -pe threaded 24
+#$ -l mem_free=128G
+#$ -pe threaded 16
 #$ -e error.txt
 #$ -o stdout.txt
 
@@ -14,4 +14,4 @@ source activate datamining
 Rscript preprocess.R
 
 # Deactivate env
-deactivate
+#deactivate
