@@ -245,6 +245,7 @@ preprocess_data = function(input_data){
 
 # Run the function to process entire training data and save to new object
 load("../data/training_processed.rda")
+
 features <- names(training)
 df <- training
 df$comp1_rate <- as.integer(df$comp1_rate)
@@ -272,6 +273,6 @@ training <- train_df
 rm(train_df)
 
 training_process_subsampled = preprocess_data(training)
-save(file = "../data/naive_preprocessed.rda", training_process_subsampled)
+save(file = "additional_data/naive_preprocessed.rda", training_process_subsampled)
 
 
