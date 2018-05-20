@@ -4,14 +4,23 @@
 library(tidyverse)
 library(purrrlyr)
 library(MASS)
+#library(parallel)
 
 # Function to return preprocessed dataframe
 preprocess_data = function(input_data, subsample = 0.10){
+  
+  # Calculate the number of cores
+  #no_cores <- detectCores() - 1
+  
+  # Initiate cluster
+  #cl <- makeCluster(no_cores)
   
   # - - - - - - - - - - - - - - - 
   # Fix competitor missing values
   # - - - - - - - - - - - - - - -
   message("Working on competitor features...")
+  start.time <- Sys.time()
+  
   # Count the number of NaN/-1/+1 values across compX_rate
   comp_rate_missing = input_data %>% 
     dplyr::select(ends_with("rate")) %>% 
@@ -94,6 +103,10 @@ preprocess_data = function(input_data, subsample = 0.10){
   
   # Message
   message("Finished working on competitor features...")
+  message(Sys.time() - start.time)
+  
+  # Stop cluster
+  #stopCluster(cl)
   
   
   # - - - - - - - - - - - - - - - 
@@ -252,7 +265,7 @@ preprocess_data = function(input_data, subsample = 0.10){
               mean_trick=mean(clicks_counts_by_prop*bool_counts_by_prop),
               count_book=sum(booking_bool),count_click=sum(click_bool),
               book_freq =sum(booking_bool)/number ,click_freq=sum(click_bool)/number,mean_byrscore_group=mean(normalised_trick3,na.rm=T))
-  print(summary_for_prop_score)
+  #print(summary_for_prop_score)
   combinations <- (combn(seq(1,5,0.5),2))
   
   
@@ -273,7 +286,7 @@ preprocess_data = function(input_data, subsample = 0.10){
   groups_centers <- summary_for_prop_score[1:10,c("prop_review_score_n","mean_byrscore_group")]
   to_substitute <-  apply(input_data[is.na(input_data$prop_review_score_n),"normalised_trick3"],1,FUN =dista)
   
-  input_data[is.na(final.table$prop_review_score_n),"prop_review_score_n"] <- to_substitute
+  input_data[is.na(input_data$prop_review_score_n),"prop_review_score_n"] <- to_substitute
   
 
   # - - - - - - - - - - - - - - - 
@@ -292,8 +305,12 @@ preprocess_data = function(input_data, subsample = 0.10){
   message("Compute new features to impute NA affinity via fitting hyperbole...")
   
   input_data <- input_data %>%
-    mutate(responses = case_when(click_bool == 0 & booking_bool == 0 ~ 0,click_bool == 1 & booking_bool == 0 ~ 0.5,click_bool == 1 & booking_bool == 1 ~ 1)) %>%
-    mutate(group_size = srch_adults_count+srch_children_count,srch_room_count=, group_size_normalized_by_room = (srch_adults_count+srch_children_count)/srch_room_count)
+    mutate(responses = case_when(click_bool == 0 & booking_bool == 0 ~ 0,
+                                 click_bool == 1 & booking_bool == 0 ~ 0.5,
+                                 click_bool == 1 & booking_bool == 1 ~ 1)) %>%
+    mutate(group_size = srch_adults_count + srch_children_count,
+           srch_room_count = srch_room_count, 
+           group_size_normalized_by_room = (srch_adults_count+srch_children_count)/srch_room_count)
   
   input_data <- input_data %>% 
     mutate(trick = ((case_when(promotion_flag == '0' ~ 1, promotion_flag == '1' ~ 2)*case_when(srch_saturday_night_bool == '0' ~ 1, srch_saturday_night_bool == '1' ~ 2))*(srch_length_of_stay*srch_booking_window*group_size))) %>%
@@ -313,10 +330,10 @@ preprocess_data = function(input_data, subsample = 0.10){
   # Altering original data, adding new columns
   # - - - - - - - - - - - - - - -
   
-  input_data$prop_review_score[is.na(input_data$prop_review_score)] <- low_review_score
+  input_data$prop_review_score[is.na(input_data$prop_review_score)] <- low_review_score[[1]]
   input_data$visitor_hist_starrating <- visitor_stars_complete
   input_data$visitor_hist_adr_usd <- visitor_usd_complete
-  input_data <- cbind(input_data, add_visitor_df, add_comp_df)
+  input_data <- cbind.data.frame(input_data, add_visitor_df, add_comp_df)
   
   # - - - - - - - - - - - - - - - - - -
   # Remove gross_bookings_usd
@@ -338,16 +355,16 @@ preprocess_data = function(input_data, subsample = 0.10){
   # - - - - - - - - - - - -
   # Subsample the dataframe
   # - - - - - - - - - - - -
-  message("Subsampling stratified the data...")
+  #message("Subsampling stratified the data...")
   # Get the number of search queries
-  subsample_size = length(levels(as.factor(input_data$srch_id))) * subsample
+  #subsample_size = length(levels(as.factor(input_data$srch_id))) * subsample
   
   # Gather X% of training queries
-  subsample_idx = sample(levels(as.factor(input_data$srch_id)), size = ceiling(subsample_size))
+  #subsample_idx = sample(levels(as.factor(input_data$srch_id)), size = ceiling(subsample_size))
   
   # Keep only sampled queries
-  input_data_subsampled = input_data %>% 
-    filter(srch_id %in% subsample_idx)
+  #input_data_subsampled = input_data %>% 
+  #  filter(srch_id %in% subsample_idx)
   
   # Return dataframe with imputed values
   
@@ -359,14 +376,7 @@ preprocess_data = function(input_data, subsample = 0.10){
   N <- dim(input_data.click)[1]
   stratified <- rbind(sample_n(input_data.click,size =N,replace=T),sample_n(input_data.book,size=N,replace=T),sample_n(input_data.notbook,size=N,replace=T))
     
-  return(stratified)
+  return(list(input_data = input_data, 
+              stratified = stratified))
   #return(input_data_subsampled)
 } 
-
-
-# Run the function to process entire training data and save to new object
-load("data/training_processed.rda")
-training_process_subsampled = preprocess_data(training)
-save(file = "data/preprocessed.rda", training_data_subsampled)
-
-

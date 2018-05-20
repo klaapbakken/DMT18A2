@@ -1,9 +1,14 @@
+rm(list=ls())
 
+load("../data/naive_preprocessed.rda")
+df <- training_process_subsampled
+remove <- c(seq(1,4), seq(29,52), seq(55,58), 9)
+df <- df[, -remove]
+rm(training_process_subsampled)
 
 summary(df)
 
 features <- variable.names(df)
-comp_features <- features[28:51]
 
 
 na_count <- colSums(is.na(df))
@@ -28,9 +33,5 @@ correlations_ranked <- function(n, corr){
 return(ranking)
 }
 
-ranked_corr <- correlations_ranked(10, corr)
-
-srch_ids <- df$srch_id
-srch_ids.unique <- unique(srch_ids)
-srch_df <- subset(df, srch_ids == srch_ids.unique[1])
+ranked_corr <- correlations_ranked(20, corr)
 
