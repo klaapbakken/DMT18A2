@@ -69,12 +69,10 @@ rm_feat <- c(rm_feat_by_indices, which(features %in% rm_feat_by_names))
 
 df <- df[, -rm_feat]
 
-property_formula <- as.formula(relevance ~ (.) + price_usd*(.) + prop_starrating*(.) + prop_review_score*(.) + prop_brand_bool(.) +
+formula <- as.formula(relevance ~ (.) + price_usd*(.) + prop_starrating*(.) + prop_review_score*(.) + prop_brand_bool*(.) +
                                  prop_location_score1*(.) + prop_log_historical_price*(.) + 
                                  prop_location_score2*(.) + promotion_flag*(.))
-logreg <- glm(relevance ~ (.) + price_usd*(.), data=df, family=binomial)
-
-#logreg <- iterated_logreg_reduction(df)
+logreg <- glm(formula, data=df, family=binomial)
 
 ## - - - - - 
 ## TEST DATA
