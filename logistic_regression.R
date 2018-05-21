@@ -7,7 +7,7 @@ set.seed(0)
 
 source("ndcg.R")
 source("evaluate.R")
-source("Oyvind/popularity_OK.R")
+source("popularity.R")
 
 load("data/preprocessed.rda")
 df <- full_table
