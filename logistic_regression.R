@@ -54,7 +54,7 @@ test_df <- subset(df, srch_id %in% test_ids)
 
 df <- train_df
 
-pop_df <- extract_popularity(train_df)
+pop_df <- extract_popularity(df)
 
 df <- apply_popularity(df, pop_df)
 
@@ -71,7 +71,7 @@ df <- df[, -rm_feat]
 
 formula <- as.formula(relevance ~ (.) + price_usd*(.) + prop_starrating*(.) + prop_review_score*(.) + prop_brand_bool*(.) +
                                  prop_location_score1*(.) + prop_log_historical_price*(.) + 
-                                 prop_location_score2*(.) + promotion_flag*(.))
+                                 prop_location_score2*(.) + promotion_flag*(.) + popularity*new_property)
 logreg <- glm(formula, data=df, family=binomial)
 
 ## - - - - - 
