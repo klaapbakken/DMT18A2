@@ -4,13 +4,6 @@ library(dplyr)
 #Popularity can thought of as "average interaction" a user has with a property.
 #1 is "every user books it", 0 is "no user clicks or books".
 extract_popularity <- function(train_df){
-  data_split <- 0.99
-  srch_ids <- train_df$srch_id
-  srch_ids.unique <- unique(srch_ids)
-  n_train <- floor(length(srch_ids.unique)*data_split)
-  train_ids <- sample(srch_ids.unique, n_train)
-  train_df <- subset(train_df, srch_id %in% train_ids)
-  
   responses <- group_by(train_df, prop_id) %>%
     summarise(total = n(), clicks = sum(click_bool), bookings = sum(booking_bool))
   popularity <- group_by(responses, prop_id) %>%
@@ -19,10 +12,18 @@ extract_popularity <- function(train_df){
 }
 
 #Popularity of property is added to the data frame
-apply_popularity <- function(df, pop_df){
+apply_popularity <- function(df, pop_df, training=FALSE){
+  if (training){
+    new_df <- left_join(test_df, pop_df, by = "prop_id") %>%
+      mutate(new_property = as.logical(rbinom(n(), 1, 0.9))) %>%
+      mutate(popularity = replace(popularity, new_property==TRUE, 0)) %>%
+      replace(., is.na(.), 0)
+  }
+  else{
   new_df <- left_join(test_df, pop_df, by = "prop_id") %>%
     mutate(new_property = is.na(popularity)) %>%
     replace(., is.na(.), 0)
+  }
   return(new_df)
 }
 
@@ -34,4 +35,4 @@ apply_popularity <- function(df, pop_df){
 
 #test_df <- data.frame(prop_id = seq(3,7))
 
-#apply_popularity(test_df, pop_df)
+#apply_popularity(test_df, pop_df, training=TRUE)

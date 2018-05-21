@@ -56,7 +56,7 @@ df <- train_df
 
 pop_df <- extract_popularity(df)
 
-df <- apply_popularity(df, pop_df)
+df <- apply_popularity(df, pop_df, training = TRUE)
 
 rm_feat_by_names <- c("srch_id", "date_time", "ymd", "site_id", 
                       "visitor_location_country_id", "prop_country_id",
