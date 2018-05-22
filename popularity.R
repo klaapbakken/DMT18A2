@@ -12,27 +12,7 @@ extract_popularity <- function(train_df){
 }
 
 #Popularity of property is added to the data frame
-apply_popularity <- function(df, pop_df, training=FALSE){
-  if (training){
-    new_df <- left_join(test_df, pop_df, by = "prop_id") %>%
-      mutate(new_property = as.logical(rbinom(n(), 1, 0.9))) %>%
-      mutate(popularity = replace(popularity, new_property==TRUE, 0)) %>%
-      replace(., is.na(.), 0)
-  }
-  else{
-  new_df <- left_join(test_df, pop_df, by = "prop_id") %>%
-    mutate(new_property = is.na(popularity)) %>%
-    replace(., is.na(.), 0)
-  }
+apply_popularity <- function(df, pop_df){
+  new_df <- left_join(test_df, pop_df, by = "prop_id") %>% replace(., is.na(.), 0)
   return(new_df)
 }
-
-#train_df <- data.frame(srch_id = c(rep(2, 5), rep(3,5)), prop_id = seq(1,10),
-#                       click_bool = sample(c(0,1), 10, replace=TRUE),
-#                       booking_bool = sample(c(0,1), 10, replace=TRUE))
-
-#pop_df <- extract_popularity(train_df)
-
-#test_df <- data.frame(prop_id = seq(3,7))
-
-#apply_popularity(test_df, pop_df, training=TRUE)
