@@ -1,9 +1,8 @@
-source("evaluate.R")
+
 
 load("data/preprocessed.rda")
 load("data/preprocessed_subsampled.rda")
 library(tidyverse)
-library(broom)
 
 
 create_center_distance <- function(expedia_tab){
