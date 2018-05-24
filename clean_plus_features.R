@@ -7,7 +7,7 @@ library(tidyverse)
 
 create_center_distance <- function(expedia_tab){
   expedia_tab <- expedia_tab%>%
-    group_by(srch_id,visitor_country_id,search_destination_id) %>%
+    group_by(srch_id,visitor_location_country_id,srch_destination_id) %>%
     mutate(center_dist=orig_destination_distance- mean(orig_destination_distance)) %>%
     mutate(group_size=srch_adults_count+srch_children_count,group_size_norm=(srch_adults_count+srch_children_count)/srch_room_count)
   
@@ -24,10 +24,13 @@ create_family_features <- function(expedia_tab){
                                       srch_adults_count<=1 & srch_adults_count>0 & srch_children_count<1 ~0,
                                       srch_adults_count>1 & srch_children_count<1 ~1, 
                                       srch_adults_count>0 & srch_children_count>0 & srch_children_count<2 ~ 2,
-                                      srch_adults_count>0 & srch_children_count>1  ~ 3) ))
+                                      srch_adults_count>0 & srch_children_count>1  ~ 3
+                                      )))
   # we have tested that there are not oscillation in the research
   #           group_by(srch_id,visitor_location_country_id,srch_destination_id) %>%
   #    mutate(fam_fact_median=(median(family_factor)))
+  expedia_tab$family_factor <- as.factor(expedia_tab$family_factor)
+  return(expedia_tab)
 }
 
 to_exclude <-  as.character(c("visitor_hist_adr_usd_lm",
