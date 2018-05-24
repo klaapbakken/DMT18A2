@@ -22,9 +22,10 @@ create_family_features <- function(expedia_tab){
   expedia_tab <- expedia_tab %>%
     mutate(family_factor = (case_when(srch_adults_count==0 & srch_children_count>0~-2,srch_adults_count==0~-1,
                                       srch_adults_count<=1 & srch_adults_count>0 & srch_children_count<1 ~0,
-                                      srch_adults_count>1 & srch_children_count<1 ~1, 
-                                      srch_adults_count>0 & srch_children_count>0 & srch_children_count<2 ~ 2,
-                                      srch_adults_count>0 & srch_children_count>1  ~ 3
+                                      srch_adults_count<=1 & srch_children_count>0 ~1,
+                                      srch_adults_count>1 & srch_children_count<1 ~2, 
+                                      srch_adults_count>0 & srch_children_count>0 & srch_children_count<2 ~ 3,
+                                      srch_adults_count>0 & srch_children_count>1  ~ 4
                                       )))
   # we have tested that there are not oscillation in the research
   #           group_by(srch_id,visitor_location_country_id,srch_destination_id) %>%
