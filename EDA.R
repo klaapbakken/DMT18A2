@@ -163,9 +163,10 @@ training.family <- training %>%
             median_stars= median(prop_starrating),
             family_factor= case_when(adults==0 & children>0~-2,adults==0~-1,
                                      adults<=1 & adults>0 & children<1 ~0,
-                                     adults>1 & children<1 ~1, 
-                                     adults>0 & children>0 & children<2 ~ 2,
-                                     adults>0 & children>1  ~ 3
+                                     adults==1 & children>0 ~1,
+                                     adults>1 & children<1 ~2, 
+                                     adults>0 & children>0 & children<2 ~ 3,
+                                     adults>0 & children>1  ~ 4
                 ))
 
 family.summary <- training.family %>%
@@ -212,15 +213,33 @@ create_family_features <- function(expedia_tab){
     mutate(family_factor = (case_when(srch_adults_count==0 & srch_children_count>0~-2,srch_adults_count==0~-1,
                                      srch_adults_count<=1 & srch_adults_count>0 & srch_children_count<1 ~0,
                                      srch_adults_count>1 & srch_children_count<1 ~1, 
-                                     srch_adults_count>0 & srch_children_count>0 & srch_children_count<2 ~ 2,
-                                     srch_adults_count>0 & srch_children_count>1  ~ 3) ))
+                                     srch_adults_count==1 & srch_children_count>0 ~2,
+                                     srch_adults_count>1 & srch_children_count>0 & srch_children_count<2 ~ 3,
+                                     srch_adults_count>1 & srch_children_count>1  ~ 4) ))
  # we have tested that there are not oscillation in the research
  #           group_by(srch_id,visitor_location_country_id,srch_destination_id) %>%
  #    mutate(fam_fact_median=(median(family_factor)))
 }
 
+write.csv(family.summary,"summary_fam.csv")
+
 training <- create_family_features(training)
 
-all_equal(training$family_factor,training$fam_fact_median)
+library(ggplot2)
+
+install.packages("hexbin")
+library(hexbin)
+training <- mutate(training,relevance = case_when(click_bool == 0 & booking_bool == 0 ~ 0,click_bool == 1 & booking_bool == 0 ~ 1,click_bool == 1 & booking_bool == 1 ~ 5))
+
+
+ggplot(data = family.summary, aes(x= rel_click,y= rel_book,color=as.factor(family_factor)))+
+  geom_point() +
+  labs(title = "Click vs Book frequencies within family group",
+       x = "click frequency",
+       y = "click frequency") +
+  theme_bw() +
+  theme(axis.text.x = element_text(colour = "grey20", size = 12, angle = 90, hjust = 0.5, vjust = 0.5),
+        axis.text.y = element_text(colour = "grey20", size = 12),
+        text = element_text(size = 12))
 
 
